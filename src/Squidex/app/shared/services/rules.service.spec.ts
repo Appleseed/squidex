@@ -14,68 +14,13 @@ import {
     ApiUrlConfig,
     CreateRuleDto,
     DateTime,
-    UpdateRuleDto,
-    Version,
     RuleDto,
     RuleEventDto,
     RuleEventsDto,
-    RulesService
+    RulesService,
+    UpdateRuleDto,
+    Version
 } from './../';
-
-describe('RuleDto', () => {
-    const creation = DateTime.today();
-    const creator = 'not-me';
-    const modified = DateTime.now();
-    const modifier = 'me';
-    const version = new Version('1');
-    const newVersion = new Version('2');
-
-    it('should update trigger', () => {
-        const trigger = { param2: 2, triggerType: 'NewType' };
-
-        const rule_1 = new RuleDto('id1', creator, creator, creation, creation, version, true, {}, 'contentChanged', {}, 'webhook');
-        const rule_2 = rule_1.updateTrigger(trigger, modifier, newVersion, modified);
-
-        expect(rule_2.trigger).toEqual(trigger);
-        expect(rule_2.triggerType).toEqual(trigger.triggerType);
-        expect(rule_2.lastModified).toEqual(modified);
-        expect(rule_2.lastModifiedBy).toEqual(modifier);
-        expect(rule_2.version).toEqual(newVersion);
-    });
-
-    it('should update action', () => {
-        const action = { param2: 2, actionType: 'NewType' };
-
-        const rule_1 = new RuleDto('id1', creator, creator, creation, creation, version, true, {}, 'contentChanged', {}, 'webhook');
-        const rule_2 = rule_1.updateAction(action, modifier, newVersion, modified);
-
-        expect(rule_2.action).toEqual(action);
-        expect(rule_2.actionType).toEqual(action.actionType);
-        expect(rule_2.lastModified).toEqual(modified);
-        expect(rule_2.lastModifiedBy).toEqual(modifier);
-        expect(rule_2.version).toEqual(newVersion);
-    });
-
-    it('should enable', () => {
-        const rule_1 = new RuleDto('id1', creator, creator, creation, creation, version, true, {}, 'contentChanged', {}, 'webhook');
-        const rule_2 = rule_1.enable(modifier, newVersion, modified);
-
-        expect(rule_2.isEnabled).toBeTruthy();
-        expect(rule_2.lastModified).toEqual(modified);
-        expect(rule_2.lastModifiedBy).toEqual(modifier);
-        expect(rule_2.version).toEqual(newVersion);
-    });
-
-    it('should disable', () => {
-        const rule_1 = new RuleDto('id1', creator, creator, creation, creation, version, true, {}, 'contentChanged', {}, 'webhook');
-        const rule_2 = rule_1.disable(modifier, newVersion, modified);
-
-        expect(rule_2.isEnabled).toBeFalsy();
-        expect(rule_2.lastModified).toEqual(modified);
-        expect(rule_2.lastModifiedBy).toEqual(modifier);
-        expect(rule_2.version).toEqual(newVersion);
-    });
-});
 
 describe('RulesService', () => {
     const now = DateTime.now();
@@ -102,7 +47,7 @@ describe('RulesService', () => {
     it('should make get request to get app rules',
         inject([RulesService, HttpTestingController], (rulesService: RulesService, httpMock: HttpTestingController) => {
 
-        let rules: RuleDto[] | null = null;
+        let rules: RuleDto[];
 
         rulesService.getRules('my-app').subscribe(result => {
             rules = result;
@@ -136,25 +81,26 @@ describe('RulesService', () => {
             }
         ]);
 
-        expect(rules).toEqual([
-            new RuleDto('id1', 'CreatedBy1', 'LastModifiedBy1',
-                DateTime.parseISO_UTC('2016-12-12T10:10'),
-                DateTime.parseISO_UTC('2017-12-12T10:10'),
-                version,
-                true,
-                {
-                    param1: 1,
-                    param2: 2,
-                    triggerType: 'ContentChanged'
-                },
-                'ContentChanged',
-                {
-                    param3: 3,
-                    param4: 4,
-                    actionType: 'Webhook'
-                },
-                'Webhook')
-        ]);
+        expect(rules!).toEqual(
+            [
+                new RuleDto('id1', 'CreatedBy1', 'LastModifiedBy1',
+                    DateTime.parseISO_UTC('2016-12-12T10:10'),
+                    DateTime.parseISO_UTC('2017-12-12T10:10'),
+                    version,
+                    true,
+                    {
+                        param1: 1,
+                        param2: 2,
+                        triggerType: 'ContentChanged'
+                    },
+                    'ContentChanged',
+                    {
+                        param3: 3,
+                        param4: 4,
+                        actionType: 'Webhook'
+                    },
+                    'Webhook')
+            ]);
     }));
 
     it('should make post request to create rule',
@@ -170,7 +116,7 @@ describe('RulesService', () => {
             actionType: 'Webhook'
         });
 
-        let rule: RuleDto | null = null;
+        let rule: RuleDto;
 
         rulesService.postRule('my-app', dto, user, now).subscribe(result => {
             rule = result;
@@ -187,7 +133,7 @@ describe('RulesService', () => {
             }
         });
 
-        expect(rule).toEqual(
+        expect(rule!).toEqual(
             new RuleDto('id1', user, user, now, now,
                 version,
                 true,
@@ -255,12 +201,14 @@ describe('RulesService', () => {
 
         expect(req.request.method).toEqual('DELETE');
         expect(req.request.headers.get('If-Match')).toEqual(version.value);
+
+        req.flush({});
     }));
 
     it('should make get request to get app rule events',
         inject([RulesService, HttpTestingController], (rulesService: RulesService, httpMock: HttpTestingController) => {
 
-        let rules: RuleEventsDto | null = null;
+        let rules: RuleEventsDto;
 
         rulesService.getEvents('my-app', 10, 20).subscribe(result => {
             rules = result;
@@ -298,7 +246,7 @@ describe('RulesService', () => {
             ]
         });
 
-        expect(rules).toEqual(
+        expect(rules!).toEqual(
             new RuleEventsDto(20, [
                 new RuleEventDto('id1',
                     DateTime.parseISO_UTC('2017-12-12T10:10'),
@@ -319,5 +267,8 @@ describe('RulesService', () => {
         const req = httpMock.expectOne('http://service/p/api/apps/my-app/rules/events/123');
 
         expect(req.request.method).toEqual('PUT');
+        expect(req.request.headers.get('If-Match')).toBeNull();
+
+        req.flush({});
     }));
 });

@@ -15,10 +15,23 @@ namespace Squidex.Config.Web
     {
         public static void AddMyMvc(this IServiceCollection services)
         {
-            services.AddSingletonAs<FileCallbackResultExecutor>();
+            services.AddSingletonAs<FileCallbackResultExecutor>()
+                .AsSelf();
 
-            services.AddSingletonAs<AppApiFilter>();
-            services.AddSingletonAs<ApiCostsFilter>();
+            services.AddSingletonAs<AppApiFilter>()
+                .AsSelf();
+
+            services.AddSingletonAs<ApiCostsFilter>()
+                .AsSelf();
+
+            services.AddSingletonAs<EnforceHttpsMiddleware>()
+                .AsSelf();
+
+            services.AddSingletonAs<LocalCacheMiddleware>()
+                .AsSelf();
+
+            services.AddSingletonAs<RequestLogPerformanceMiddleware>()
+                .AsSelf();
 
             services.AddMvc().AddMySerializers();
             services.AddCors();

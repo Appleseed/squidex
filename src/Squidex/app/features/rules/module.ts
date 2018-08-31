@@ -12,7 +12,7 @@ import {
     HelpComponent,
     SqxFrameworkModule,
     SqxSharedModule
-} from 'shared';
+} from '@app/shared';
 
 import {
     AlgoliaActionComponent,
@@ -21,10 +21,13 @@ import {
     ContentChangedTriggerComponent,
     ElasticSearchActionComponent,
     FastlyActionComponent,
+    MediumActionComponent,
+    RuleEventBadgeClassPipe,
     RuleEventsPageComponent,
     RulesPageComponent,
     RuleWizardComponent,
     SlackActionComponent,
+    TweetActionComponent,
     WebhookActionComponent
 } from './declarations';
 
@@ -41,7 +44,7 @@ const routes: Routes = [
                 path: 'help',
                 component: HelpComponent,
                 data: {
-                    helpPage: '06-integrated/rules'
+                    helpPage: '05-integrated/rules'
                 }
             }
         ]
@@ -61,10 +64,13 @@ const routes: Routes = [
         ContentChangedTriggerComponent,
         ElasticSearchActionComponent,
         FastlyActionComponent,
+        MediumActionComponent,
+        RuleEventBadgeClassPipe,
         RuleEventsPageComponent,
         RulesPageComponent,
         RuleWizardComponent,
         SlackActionComponent,
+        TweetActionComponent,
         WebhookActionComponent
     ]
 })

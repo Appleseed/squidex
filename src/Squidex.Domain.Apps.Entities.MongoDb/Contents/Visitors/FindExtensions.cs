@@ -12,6 +12,7 @@ using System.Reflection;
 using Microsoft.OData.UriParser;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
+using NodaTime;
 using Squidex.Domain.Apps.Core.Contents;
 using Squidex.Domain.Apps.Core.GenerateEdmSchema;
 using Squidex.Domain.Apps.Core.Schemas;
@@ -27,12 +28,19 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Contents.Visitors
             typeof(MongoContentEntity).GetProperties()
                 .ToDictionary(x => x.Name, x => x.GetCustomAttribute<BsonElementAttribute>()?.ElementName ?? x.Name, StringComparer.OrdinalIgnoreCase);
 
-        static FindExtensions()
+        public static readonly ConvertValue ValueConverter = (field, value) =>
         {
-            PropertyMap["Data"] = "do";
-        }
+            if (value is Instant instant &&
+                !string.Equals(field, "mt", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(field, "ct", StringComparison.OrdinalIgnoreCase))
+            {
+                return instant.ToString();
+            }
 
-        public static PropertyCalculator CreatePropertyCalculator(Schema schema)
+            return value;
+        };
+
+        public static ConvertProperty CreatePropertyCalculator(Schema schema, bool useDraft)
         {
             return propertyNames =>
             {
@@ -50,7 +58,21 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Contents.Visitors
 
                 if (propertyNames.Length > 0)
                 {
-                    propertyNames[0] = PropertyMap[propertyNames[0]];
+                    if (propertyNames[0].Equals("Data", StringComparison.CurrentCultureIgnoreCase))
+                    {
+                        if (useDraft)
+                        {
+                            propertyNames[0] = "dd";
+                        }
+                        else
+                        {
+                            propertyNames[0] = "do";
+                        }
+                    }
+                    else
+                    {
+                        propertyNames[0] = PropertyMap[propertyNames[0]];
+                    }
                 }
 
                 var propertyName = string.Join(".", propertyNames);
@@ -59,7 +81,7 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Contents.Visitors
             };
         }
 
-        public static IFindFluent<MongoContentEntity, MongoContentEntity> ContentSort(this IFindFluent<MongoContentEntity, MongoContentEntity> cursor, ODataUriParser query, PropertyCalculator propertyCalculator)
+        public static IFindFluent<MongoContentEntity, MongoContentEntity> ContentSort(this IFindFluent<MongoContentEntity, MongoContentEntity> cursor, ODataUriParser query, ConvertProperty propertyCalculator)
         {
             var sort = query.BuildSort<MongoContentEntity>(propertyCalculator);
 
@@ -76,16 +98,20 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Contents.Visitors
             return cursor.Skip(query);
         }
 
-        public static FilterDefinition<MongoContentEntity> BuildQuery(ODataUriParser query, Guid schemaId, Status[] status, PropertyCalculator propertyCalculator)
+        public static FilterDefinition<MongoContentEntity> BuildQuery(ODataUriParser query, Guid schemaId, Status[] status, ConvertProperty propertyCalculator)
         {
             var filters = new List<FilterDefinition<MongoContentEntity>>
             {
-                Filter.Eq(x => x.SchemaIdId, schemaId),
-                Filter.In(x => x.Status, status),
-                Filter.Eq(x => x.IsDeleted, false)
+                Filter.Eq(x => x.IndexedSchemaId, schemaId)
             };
 
-            var filter = query.BuildFilter<MongoContentEntity>(propertyCalculator);
+            if (status != null)
+            {
+                filters.Add(Filter.Ne(x => x.IsDeleted, true));
+                filters.Add(Filter.In(x => x.Status, status));
+            }
+
+            var filter = query.BuildFilter<MongoContentEntity>(propertyCalculator, ValueConverter);
 
             if (filter.Filter != null)
             {

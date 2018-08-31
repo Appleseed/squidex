@@ -6,6 +6,7 @@
 // ==========================================================================
 
 using System;
+using System.Collections.Generic;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using Squidex.Domain.Apps.Core.ValidateContent;
@@ -23,8 +24,8 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Assets
         IUpdateableEntityWithLastModifiedBy
     {
         [BsonRequired]
-        [BsonElement]
-        public Guid AppIdId { get; set; }
+        [BsonElement("AppIdId")]
+        public Guid IndexedAppId { get; set; }
 
         [BsonRequired]
         [BsonElement]
@@ -69,6 +70,10 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Assets
         [BsonRequired]
         [BsonElement]
         public RefToken LastModifiedBy { get; set; }
+
+        [BsonIgnoreIfNull]
+        [BsonElement]
+        public HashSet<string> Tags { get; set; }
 
         [BsonElement]
         public bool IsDeleted { get; set; }

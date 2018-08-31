@@ -9,13 +9,15 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using FakeItEasy;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
 using NodaTime;
 using Squidex.Domain.Apps.Core.HandleRules;
 using Squidex.Domain.Apps.Core.Rules;
-using Squidex.Domain.Apps.Core.Rules.Actions;
 using Squidex.Domain.Apps.Core.Rules.Triggers;
 using Squidex.Domain.Apps.Entities.Rules.Repositories;
 using Squidex.Domain.Apps.Events.Contents;
+using Squidex.Domain.Apps.Rules.Action.Webhook;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.EventSourcing;
 using Xunit;
@@ -25,16 +27,18 @@ namespace Squidex.Domain.Apps.Entities.Rules
     public class RuleEnqueuerTests
     {
         private readonly IAppProvider appProvider = A.Fake<IAppProvider>();
+        private readonly IMemoryCache cache = new MemoryCache(Options.Create(new MemoryCacheOptions()));
         private readonly IRuleEventRepository ruleEventRepository = A.Fake<IRuleEventRepository>();
         private readonly RuleService ruleService = A.Fake<RuleService>();
         private readonly Instant now = SystemClock.Instance.GetCurrentInstant();
-        private readonly NamedId<Guid> appId = new NamedId<Guid>(Guid.NewGuid(), "my-app");
+        private readonly NamedId<Guid> appId = NamedId.Of(Guid.NewGuid(), "my-app");
         private readonly RuleEnqueuer sut;
 
         public RuleEnqueuerTests()
         {
             sut = new RuleEnqueuer(
                 appProvider,
+                cache,
                 ruleEventRepository,
                 ruleService);
         }
@@ -80,14 +84,14 @@ namespace Squidex.Domain.Apps.Entities.Rules
             A.CallTo(() => appProvider.GetRulesAsync(appId.Id))
                 .Returns(new List<IRuleEntity> { ruleEntity1, ruleEntity2, ruleEntity3 });
 
-            A.CallTo(() => ruleService.CreateJob(rule1, @event))
+            A.CallTo(() => ruleService.CreateJobAsync(rule1, @event))
                 .Returns(job1);
 
-            A.CallTo(() => ruleService.CreateJob(rule2, @event))
+            A.CallTo(() => ruleService.CreateJobAsync(rule2, @event))
                 .Returns(job2);
 
-            A.CallTo(() => ruleService.CreateJob(rule3, @event))
-                .Returns(null);
+            A.CallTo(() => ruleService.CreateJobAsync(rule3, @event))
+                .Returns(Task.FromResult<RuleJob>(null));
 
             await sut.On(@event);
 

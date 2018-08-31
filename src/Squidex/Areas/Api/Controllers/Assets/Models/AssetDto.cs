@@ -6,9 +6,12 @@
 // ==========================================================================
 
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using NodaTime;
+using Squidex.Domain.Apps.Entities.Assets;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.Reflection;
 
 namespace Squidex.Areas.Api.Controllers.Assets.Models
 {
@@ -36,6 +39,11 @@ namespace Squidex.Areas.Api.Controllers.Assets.Models
         /// </summary>
         [Required]
         public string FileType { get; set; }
+
+        /// <summary>
+        /// The asset tags.
+        /// </summary>
+        public HashSet<string> Tags { get; set; }
 
         /// <summary>
         /// The size of the file in bytes.
@@ -88,5 +96,10 @@ namespace Squidex.Areas.Api.Controllers.Assets.Models
         /// The version of the asset.
         /// </summary>
         public long Version { get; set; }
+
+        public static AssetDto FromAsset(IAssetEntity asset)
+        {
+            return SimpleMapper.Map(asset, new AssetDto { FileType = asset.FileName.FileType() });
+        }
     }
 }

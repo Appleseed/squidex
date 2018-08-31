@@ -9,14 +9,15 @@ using System;
 using System.Collections.Immutable;
 using System.Threading.Tasks;
 using FakeItEasy;
-using Squidex.Domain.Apps.Core.Rules.Actions;
 using Squidex.Domain.Apps.Core.Rules.Triggers;
 using Squidex.Domain.Apps.Entities.Rules.Commands;
 using Squidex.Domain.Apps.Entities.Rules.State;
 using Squidex.Domain.Apps.Entities.TestHelpers;
 using Squidex.Domain.Apps.Events.Rules;
+using Squidex.Domain.Apps.Rules.Action.Webhook;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Commands;
+using Squidex.Infrastructure.Log;
 using Xunit;
 
 namespace Squidex.Domain.Apps.Entities.Rules
@@ -34,8 +35,8 @@ namespace Squidex.Domain.Apps.Entities.Rules
 
         public RuleGrainTests()
         {
-            sut = new RuleGrain(Store, appProvider);
-            sut.ActivateAsync(Id).Wait();
+            sut = new RuleGrain(Store, A.Dummy<ISemanticLog>(), appProvider);
+            sut.OnActivateAsync(Id).Wait();
         }
 
         [Fact]

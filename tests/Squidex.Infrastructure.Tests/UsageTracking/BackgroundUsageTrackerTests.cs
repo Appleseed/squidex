@@ -48,7 +48,7 @@ namespace Squidex.Infrastructure.UsageTracking
         {
             sut.Dispose();
 
-            return Assert.ThrowsAsync<ObjectDisposedException>(() => sut.GetMonthlyCalls("key1", DateTime.Today));
+            return Assert.ThrowsAsync<ObjectDisposedException>(() => sut.GetMonthlyCallsAsync("key1", DateTime.Today));
         }
 
         [Fact]
@@ -67,7 +67,7 @@ namespace Squidex.Infrastructure.UsageTracking
             A.CallTo(() => usageStore.QueryAsync("key", new DateTime(2016, 1, 1), new DateTime(2016, 1, 31)))
                 .Returns(originalData);
 
-            var result = await sut.GetMonthlyCalls("key", date);
+            var result = await sut.GetMonthlyCallsAsync("key", date);
 
             Assert.Equal(55, result);
         }
@@ -91,7 +91,7 @@ namespace Squidex.Infrastructure.UsageTracking
 
             var result = await sut.QueryAsync("key", dateFrom, dateTo);
 
-            result.ShouldBeEquivalentTo(new List<StoredUsage>
+            result.Should().BeEquivalentTo(new List<StoredUsage>
             {
                 new StoredUsage(dateFrom.AddDays(0), 00, 00),
                 new StoredUsage(dateFrom.AddDays(1), 10, 15),
