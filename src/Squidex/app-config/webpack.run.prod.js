@@ -10,7 +10,11 @@ const plugins = {
     // https://www.npmjs.com/package/@ngtools/webpack
     NgToolsWebpack: require('@ngtools/webpack'),
     // https://github.com/webpack-contrib/mini-css-extract-plugin
-    MiniCssExtractPlugin: require('mini-css-extract-plugin')
+    MiniCssExtractPlugin: require('mini-css-extract-plugin'),
+    // https://github.com/NMFR/optimize-css-assets-webpack-plugin
+    OptimizeCSSAssetsPlugin: require("optimize-css-assets-webpack-plugin"),
+    // https://github.com/jrparish/tslint-webpack-plugin
+    TsLintPlugin: require('tslint-webpack-plugin')
 };
             
 helpers.removeLoaders(runConfig, ['scss', 'ts']);
@@ -30,15 +34,13 @@ module.exports = webpackMerge(runConfig, {
 
         /**
          * Specifies the name of each output file on disk.
-         * IMPORTANT: You must not specify an absolute path here!
          *
          * See: https://webpack.js.org/configuration/output/#output-filename
          */
         filename: '[name].js',
 
         /**
-         * The filename of non-entry chunks as relative path
-         * inside the output.path directory.
+         * The filename of non-entry chunks as relative path inside the output.path directory.
          *
          * See: https://webpack.js.org/configuration/output/#output-chunkfilename
          */
@@ -59,19 +61,19 @@ module.exports = webpackMerge(runConfig, {
         rules: [{
             test: /\.scss$/,
             /*
-             * Extract the content from a bundle to a file
+             * Extract the content from a bundle to a file.
              * 
              * See: https://github.com/webpack-contrib/extract-text-webpack-plugin
              */
             use: [
                 plugins.MiniCssExtractPlugin.loader,
             {
-                loader: 'css-loader', options: { minimize: true },
+                loader: 'css-loader'
             }, {
                 loader: 'sass-loader'
             }],
             /*
-             * Do not include component styles
+             * Do not include component styles.
              */
             include: helpers.root('app', 'theme'),
         }, {
@@ -96,7 +98,19 @@ module.exports = webpackMerge(runConfig, {
             sourceMap: false,
             skipSourceGeneration: false,
             tsConfigPath: './tsconfig.json'
-        }),  
+        }),
+
+        new plugins.TsLintPlugin({
+            files: ['./app/**/*.ts'],
+            /**
+             * Path to a configuration file.
+             */
+            config: helpers.root('tslint.json'),
+            /**
+             * Wait for linting and fail the build when linting error occur.
+             */
+            waitForLinting: true
+        })
     ],
 
     optimization: {
@@ -105,9 +119,15 @@ module.exports = webpackMerge(runConfig, {
                 uglifyOptions: {
                     compress: false,
                     ecma: 6,
-                    mangle: true
-                }
-            })
+                    mangle: true,
+                    output: {
+                        comments: false
+                    }
+                },
+                extractComments: true
+            }),
+
+            new plugins.OptimizeCSSAssetsPlugin({})
         ]
     },
 

@@ -19,34 +19,24 @@
     }
 }
 
-@mixin build-link-button($color) {
+@mixin build-text-button($color) {
     & {
         color: $color;
-        cursor: pointer;
-        border: 1px solid transparent;
     }
 
-    &:focus {
-        outline-color: transparent;
-    }
-
-    &:disabled {
-        @include opacity(.4);
-    }
-
-    &:disabled,
+    &:disabled
     &.disabled {
-        cursor: not-allowed;
-        border-color: transparent;
-    }
-
+        @include opacity(.4);
+    }  
+    
     &:focus,
+    &.focus {
+        @include box-shadow-raw(0 0 0 $btn-focus-width rgba($color, .5));
+    }
+    
     &:active,
     &:hover {
         color: darken($color, 8%);
-        border-color: transparent;
-        background: transparent;
-        text-decoration: none;
     }
 }
 
@@ -177,8 +167,10 @@
  
 @mixin circle($size) {
     @include border-radius($size * .5);
-     width: $size;
-    height: $size;
+    min-height: $size;
+    max-height: $size;
+    min-width: $size;
+    max-width: $size;
 }
 
 @mixin wrap() {

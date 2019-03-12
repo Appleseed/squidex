@@ -5,7 +5,7 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using NJsonSchema.Infrastructure;
@@ -24,8 +24,6 @@ namespace Squidex.Areas.Api.Config.Swagger
 
         public async Task<bool> ProcessAsync(OperationProcessorContext context)
         {
-            var hasOkResponse = false;
-
             var operation = context.OperationDescription.Operation;
 
             var returnsDescription = await context.MethodInfo.GetXmlDocumentationTagAsync("returns") ?? string.Empty;
@@ -42,40 +40,31 @@ namespace Squidex.Areas.Api.Config.Swagger
                 }
 
                 response.Description = match.Groups["Description"].Value;
-
-                if (string.Equals(statusCode, "200", StringComparison.OrdinalIgnoreCase))
-                {
-                    hasOkResponse = true;
-                }
             }
 
             await AddInternalErrorResponseAsync(context, operation);
 
-            if (!hasOkResponse)
-            {
-                RemoveOkResponse(operation);
-            }
+            CleanupResponses(operation);
 
             return true;
         }
 
         private static async Task AddInternalErrorResponseAsync(OperationProcessorContext context, SwaggerOperation operation)
         {
-            if (operation.Responses.ContainsKey("500"))
+            if (!operation.Responses.ContainsKey("500"))
             {
-                return;
+                operation.AddResponse("500", "Operation failed", await context.SchemaGenerator.GetErrorDtoSchemaAsync(context.SchemaResolver));
             }
-
-            operation.AddResponse("500", "Operation failed", await context.SchemaGenerator.GetErrorDtoSchemaAsync(context.SchemaResolver));
         }
 
-        private static void RemoveOkResponse(SwaggerOperation operation)
+        private static void CleanupResponses(SwaggerOperation operation)
         {
-            if (operation.Responses.TryGetValue("200", out var response) &&
-                response.Description != null &&
-                response.Description.Contains("=>"))
+            foreach (var (code, response) in operation.Responses.ToList())
             {
-                operation.Responses.Remove("200");
+                if (string.IsNullOrWhiteSpace(response.Description) || response.Description?.Contains("=>") == true)
+                {
+                    operation.Responses.Remove(code);
+                }
             }
         }
     }

@@ -7,24 +7,21 @@
 
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using NSwag.Annotations;
 using Orleans;
 using Squidex.Areas.Api.Controllers.Backups.Models;
 using Squidex.Domain.Apps.Entities.Backup;
 using Squidex.Infrastructure.Commands;
+using Squidex.Infrastructure.Orleans;
 using Squidex.Infrastructure.Security;
 using Squidex.Pipeline;
+using Squidex.Shared;
 
 namespace Squidex.Areas.Api.Controllers.Backups
 {
     /// <summary>
-    /// Restores backups.
+    /// Manages backups for apps.
     /// </summary>
-    [ApiAuthorize]
-    [ApiExceptionFilter]
-    [ApiModelValidation(true)]
-    [MustBeAdministrator]
-    [SwaggerIgnore]
+    [ApiExplorerSettings(GroupName = nameof(Backups))]
     public class RestoreController : ApiController
     {
         private readonly IGrainFactory grainFactory;
@@ -35,12 +32,19 @@ namespace Squidex.Areas.Api.Controllers.Backups
             this.grainFactory = grainFactory;
         }
 
+        /// <summary>
+        /// Get current restore status.
+        /// </summary>
+        /// <returns>
+        /// 200 => Status returned.
+        /// </returns>
         [HttpGet]
         [Route("apps/restore/")]
-        [ApiCosts(0)]
+        [ProducesResponseType(typeof(RestoreJobDto), 200)]
+        [ApiPermission(Permissions.AdminRestoreRead)]
         public async Task<IActionResult> GetJob()
         {
-            var restoreGrain = grainFactory.GetGrain<IRestoreGrain>(User.OpenIdSubject());
+            var restoreGrain = grainFactory.GetGrain<IRestoreGrain>(SingleGrain.Id);
 
             var job = await restoreGrain.GetJobAsync();
 
@@ -49,21 +53,26 @@ namespace Squidex.Areas.Api.Controllers.Backups
                 return NotFound();
             }
 
-            var jobs = await restoreGrain.GetJobAsync();
-
             var response = RestoreJobDto.FromJob(job.Value);
 
             return Ok(response);
         }
 
+        /// <summary>
+        /// Restore a backup.
+        /// </summary>
+        /// <param name="request">The backup to restore.</param>
+        /// <returns>
+        /// 204 => Restore operation started.
+        /// </returns>
         [HttpPost]
         [Route("apps/restore/")]
-        [ApiCosts(0)]
+        [ApiPermission(Permissions.AdminRestoreCreate)]
         public async Task<IActionResult> PostRestore([FromBody] RestoreRequest request)
         {
-            var restoreGrain = grainFactory.GetGrain<IRestoreGrain>(User.OpenIdSubject());
+            var restoreGrain = grainFactory.GetGrain<IRestoreGrain>(SingleGrain.Id);
 
-            await restoreGrain.RestoreAsync(request.Url, request.Name);
+            await restoreGrain.RestoreAsync(request.Url, User.Token(), request.Name);
 
             return NoContent();
         }

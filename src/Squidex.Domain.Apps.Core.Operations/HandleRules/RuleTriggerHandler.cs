@@ -6,24 +6,58 @@
 // ==========================================================================
 
 using System;
+using System.Threading.Tasks;
+using Squidex.Domain.Apps.Core.HandleRules.EnrichedEvents;
 using Squidex.Domain.Apps.Core.Rules;
 using Squidex.Domain.Apps.Events;
 using Squidex.Infrastructure.EventSourcing;
 
+#pragma warning disable IDE0019 // Use pattern matching
+
 namespace Squidex.Domain.Apps.Core.HandleRules
 {
-    public abstract class RuleTriggerHandler<T> : IRuleTriggerHandler where T : RuleTrigger
+    public abstract class RuleTriggerHandler<TTrigger, TEvent, TEnrichedEvent> : IRuleTriggerHandler
+        where TTrigger : RuleTrigger
+        where TEvent : AppEvent
+        where TEnrichedEvent : EnrichedEvent
     {
         public Type TriggerType
         {
-            get { return typeof(T); }
+            get { return typeof(TTrigger); }
         }
 
-        bool IRuleTriggerHandler.Triggers(Envelope<AppEvent> @event, RuleTrigger trigger)
+        async Task<EnrichedEvent> IRuleTriggerHandler.CreateEnrichedEventAsync(Envelope<AppEvent> @event)
         {
-            return Triggers(@event, (T)trigger);
+            return await CreateEnrichedEventAsync(@event.To<TEvent>());
         }
 
-        protected abstract bool Triggers(Envelope<AppEvent> @event, T trigger);
+        bool IRuleTriggerHandler.Trigger(EnrichedEvent @event, RuleTrigger trigger)
+        {
+            if (@event is TEnrichedEvent typed)
+            {
+                return Trigger(typed, (TTrigger)trigger);
+            }
+
+            return false;
+        }
+
+        bool IRuleTriggerHandler.Trigger(AppEvent @event, RuleTrigger trigger, Guid ruleId)
+        {
+            if (@event is TEvent typed)
+            {
+                return Trigger(typed, (TTrigger)trigger, ruleId);
+            }
+
+            return false;
+        }
+
+        protected abstract Task<TEnrichedEvent> CreateEnrichedEventAsync(Envelope<TEvent> @event);
+
+        protected abstract bool Trigger(TEnrichedEvent @event, TTrigger trigger);
+
+        protected virtual bool Trigger(TEvent @event, TTrigger trigger, Guid ruleId)
+        {
+            return true;
+        }
     }
 }

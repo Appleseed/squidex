@@ -101,10 +101,7 @@ namespace Squidex.Infrastructure.MongoDb
             {
                 var update = updater(Builders<T>.Update.Set(x => x.Version, newVersion));
 
-                await collection.UpdateOneAsync(x => x.Id.Equals(key) && x.Version == oldVersion,
-                    update
-                        .Set(x => x.Version, newVersion),
-                    Upsert);
+                await collection.UpdateOneAsync(x => x.Id.Equals(key) && x.Version == oldVersion, update, Upsert);
             }
             catch (MongoWriteException ex)
             {
@@ -152,14 +149,14 @@ namespace Squidex.Infrastructure.MongoDb
             }
         }
 
-        public static async Task ForEachPipelineAsync<TDocument>(this IAsyncCursorSource<TDocument> source, Func<TDocument, Task> processor, CancellationToken cancellationToken = default(CancellationToken))
+        public static async Task ForEachPipelineAsync<TDocument>(this IAsyncCursorSource<TDocument> source, Func<TDocument, Task> processor, CancellationToken cancellationToken = default)
         {
             var cursor = await source.ToCursorAsync(cancellationToken);
 
             await cursor.ForEachPipelineAsync(processor, cancellationToken);
         }
 
-        public static async Task ForEachPipelineAsync<TDocument>(this IAsyncCursor<TDocument> source, Func<TDocument, Task> processor, CancellationToken cancellationToken = default(CancellationToken))
+        public static async Task ForEachPipelineAsync<TDocument>(this IAsyncCursor<TDocument> source, Func<TDocument, Task> processor, CancellationToken cancellationToken = default)
         {
             using (var selfToken = new CancellationTokenSource())
             {

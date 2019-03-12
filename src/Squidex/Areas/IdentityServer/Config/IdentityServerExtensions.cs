@@ -15,8 +15,8 @@ using Microsoft.Extensions.Options;
 using Squidex.Config;
 using Squidex.Domain.Users;
 using Squidex.Infrastructure.Log;
-using Squidex.Shared.Identity;
-using Squidex.Shared.Users;
+using Squidex.Infrastructure.Security;
+using Squidex.Shared;
 
 namespace Squidex.Areas.IdentityServer.Config
 {
@@ -29,31 +29,14 @@ namespace Squidex.Areas.IdentityServer.Config
             return app;
         }
 
-        public static IServiceProvider UseMyAdminRole(this IServiceProvider services)
-        {
-            var roleManager = services.GetRequiredService<RoleManager<IRole>>();
-
-            Task.Run(async () =>
-            {
-                if (!await roleManager.RoleExistsAsync(SquidexRoles.Administrator))
-                {
-                    var role = services.GetRequiredService<IRoleFactory>().Create(SquidexRoles.Administrator);
-
-                    await roleManager.CreateAsync(role);
-                }
-            }).Wait();
-
-            return services;
-        }
-
         public static IServiceProvider UseMyAdmin(this IServiceProvider services)
         {
-            var options = services.GetService<IOptions<MyIdentityOptions>>().Value;
+            var options = services.GetRequiredService<IOptions<MyIdentityOptions>>().Value;
 
-            var userManager = services.GetService<UserManager<IUser>>();
-            var userFactory = services.GetService<IUserFactory>();
+            var userManager = services.GetRequiredService<UserManager<IdentityUser>>();
+            var userFactory = services.GetRequiredService<IUserFactory>();
 
-            var log = services.GetService<ISemanticLog>();
+            var log = services.GetRequiredService<ISemanticLog>();
 
             if (options.IsAdminConfigured())
             {
@@ -66,9 +49,15 @@ namespace Squidex.Areas.IdentityServer.Config
                     {
                         try
                         {
-                            var user = await userManager.CreateAsync(userFactory, adminEmail, adminEmail, adminPass);
+                            var values = new UserValues
+                            {
+                                Email = adminEmail,
+                                Password = adminPass,
+                                Permissions = new PermissionSet(Permissions.Admin),
+                                DisplayName = adminEmail
+                            };
 
-                            await userManager.AddToRoleAsync(user, SquidexRoles.Administrator);
+                            await userManager.CreateAsync(userFactory, values);
                         }
                         catch (Exception ex)
                         {

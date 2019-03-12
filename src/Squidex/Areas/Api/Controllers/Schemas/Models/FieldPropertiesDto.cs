@@ -14,7 +14,7 @@ using Squidex.Domain.Apps.Core.Schemas;
 
 namespace Squidex.Areas.Api.Controllers.Schemas.Models
 {
-    [JsonConverter(typeof(JsonInheritanceConverter), "fieldType", typeof(FieldPropertiesDto))]
+    [JsonConverter(typeof(MyJsonInheritanceConverter<FieldPropertiesDto>), "fieldType")]
     [KnownType(nameof(Subtypes))]
     public abstract class FieldPropertiesDto
     {
@@ -60,7 +60,7 @@ namespace Squidex.Areas.Api.Controllers.Schemas.Models
 
         public static Type[] Subtypes()
         {
-            var type = typeof(SchemaPropertiesDto);
+            var type = typeof(FieldPropertiesDto);
 
             return type.Assembly.GetTypes().Where(type.IsAssignableFrom).ToArray();
         }

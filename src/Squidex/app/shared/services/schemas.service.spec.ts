@@ -25,7 +25,6 @@ import {
     UpdateFieldDto,
     UpdateSchemaCategoryDto,
     UpdateSchemaDto,
-    UpdateSchemaScriptsDto,
     Version
 } from './../';
 
@@ -146,6 +145,9 @@ describe('SchemasService', () => {
             properties: {
                 label: 'label1',
                 hints: 'hints1'
+            },
+            previewUrls: {
+                'Default': 'url'
             },
             fields: [
                 {
@@ -281,11 +283,13 @@ describe('SchemasService', () => {
                     }
                 }
             ],
-            scriptQuery: '<script-query>',
-            scriptCreate: '<script-create>',
-            scriptUpdate: '<script-update>',
-            scriptDelete: '<script-delete>',
-            scriptChange: '<script-change>'
+            scripts: {
+                query: '<script-query>',
+                create: '<script-create>',
+                change: '<script-change>',
+                delete: '<script-delete>',
+                update: '<script-update>'
+            }
         }, {
             headers: {
                 etag: '2'
@@ -312,11 +316,16 @@ describe('SchemasService', () => {
                     new RootFieldDto(19, 'field19', createProperties('String'), 'language', true, true, true),
                     new RootFieldDto(20, 'field20', createProperties('Tags'), 'language', true, true, true)
                 ],
-                '<script-query>',
-                '<script-create>',
-                '<script-update>',
-                '<script-delete>',
-                '<script-change>'));
+                {
+                    query: '<script-query>',
+                    create: '<script-create>',
+                    change: '<script-change>',
+                    delete: '<script-delete>',
+                    update: '<script-update>'
+                },
+                {
+                    'Default': 'url'
+                }));
     }));
 
     it('should make post request to create schema',
@@ -343,8 +352,7 @@ describe('SchemasService', () => {
             }
         });
 
-        expect(schema!).toEqual(
-            new SchemaDetailsDto('1', dto.name, '', new SchemaPropertiesDto(), true, false, now, user, now, user, new Version('2'), []));
+        expect(schema!).toEqual(new SchemaDetailsDto('1', dto.name, '', new SchemaPropertiesDto(), true, false, now, user, now, user, new Version('2'), [], {}, {}));
     }));
 
     it('should make put request to update schema',
@@ -365,7 +373,7 @@ describe('SchemasService', () => {
     it('should make put request to update schema scripts',
         inject([SchemasService, HttpTestingController], (schemasService: SchemasService, httpMock: HttpTestingController) => {
 
-        const dto = new UpdateSchemaScriptsDto();
+        const dto = {};
 
         schemasService.putScripts('my-app', 'my-schema', dto, version).subscribe();
 
@@ -385,6 +393,21 @@ describe('SchemasService', () => {
         schemasService.putCategory('my-app', 'my-schema', dto, version).subscribe();
 
         const req = httpMock.expectOne('http://service/p/api/apps/my-app/schemas/my-schema/category');
+
+        expect(req.request.method).toEqual('PUT');
+        expect(req.request.headers.get('If-Match')).toBe(version.value);
+
+        req.flush({});
+    }));
+
+    it('should make put request to update preview urls',
+        inject([SchemasService, HttpTestingController], (schemasService: SchemasService, httpMock: HttpTestingController) => {
+
+        const dto = {};
+
+        schemasService.putPreviewUrls('my-app', 'my-schema', dto, version).subscribe();
+
+        const req = httpMock.expectOne('http://service/p/api/apps/my-app/schemas/my-schema/preview-urls');
 
         expect(req.request.method).toEqual('PUT');
         expect(req.request.headers.get('If-Match')).toBe(version.value);

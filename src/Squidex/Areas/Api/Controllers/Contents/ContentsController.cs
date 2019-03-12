@@ -10,9 +10,9 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Microsoft.Net.Http.Headers;
 using NodaTime;
 using NodaTime.Text;
-using NSwag.Annotations;
 using Squidex.Areas.Api.Controllers.Contents.Models;
 using Squidex.Domain.Apps.Core.Contents;
 using Squidex.Domain.Apps.Entities;
@@ -21,13 +21,11 @@ using Squidex.Domain.Apps.Entities.Contents.Commands;
 using Squidex.Domain.Apps.Entities.Contents.GraphQL;
 using Squidex.Infrastructure.Commands;
 using Squidex.Pipeline;
+using Squidex.Shared;
+using Squidex.Shared.Identity;
 
 namespace Squidex.Areas.Api.Controllers.Contents
 {
-    [ApiAuthorize]
-    [ApiExceptionFilter]
-    [AppApi]
-    [SwaggerIgnore]
     public sealed class ContentsController : ApiController
     {
         private readonly IOptions<MyContentsControllerOptions> controllerOptions;
@@ -58,14 +56,14 @@ namespace Squidex.Areas.Api.Controllers.Contents
         /// <remarks>
         /// You can read the generated documentation for your app at /api/content/{appName}/docs
         /// </remarks>
-        [MustBeAppReader]
         [HttpGet]
         [HttpPost]
         [Route("content/{app}/graphql/")]
+        [ApiPermission]
         [ApiCosts(2)]
         public async Task<IActionResult> PostGraphQL(string app, [FromBody] GraphQLQuery query)
         {
-            var result = await graphQl.QueryAsync(Context().Base, query);
+            var result = await graphQl.QueryAsync(Context(), query);
 
             if (result.HasError)
             {
@@ -78,7 +76,7 @@ namespace Squidex.Areas.Api.Controllers.Contents
         }
 
         /// <summary>
-        /// GraphQL endpoint with batch support.
+        /// GraphQL endpoint (Batch).
         /// </summary>
         /// <param name="app">The name of the app.</param>
         /// <param name="batch">The graphql queries.</param>
@@ -89,14 +87,14 @@ namespace Squidex.Areas.Api.Controllers.Contents
         /// <remarks>
         /// You can read the generated documentation for your app at /api/content/{appName}/docs
         /// </remarks>
-        [MustBeAppReader]
         [HttpGet]
         [HttpPost]
         [Route("content/{app}/graphql/batch")]
+        [ApiPermission]
         [ApiCosts(2)]
         public async Task<IActionResult> PostGraphQLBatch(string app, [FromBody] GraphQLQuery[] batch)
         {
-            var result = await graphQl.QueryAsync(Context().Base, batch);
+            var result = await graphQl.QueryAsync(Context(), batch);
 
             if (result.HasError)
             {
@@ -122,28 +120,28 @@ namespace Squidex.Areas.Api.Controllers.Contents
         /// <remarks>
         /// You can read the generated documentation for your app at /api/content/{appName}/docs
         /// </remarks>
-        [MustBeAppReader]
         [HttpGet]
         [Route("content/{app}/{name}/")]
-        [ApiCosts(2)]
+        [ApiPermission]
+        [ApiCosts(1)]
         public async Task<IActionResult> GetContents(string app, string name, [FromQuery] bool archived = false, [FromQuery] string ids = null)
         {
-            var context = Context().WithArchived(archived).WithSchemaName(name);
+            var context = Context().WithArchived(archived);
 
-            var result = await contentQuery.QueryAsync(context, Query.Empty.WithIds(ids).WithODataQuery(Request.QueryString.ToString()));
+            var result = await contentQuery.QueryAsync(context, name, Q.Empty.WithIds(ids).WithODataQuery(Request.QueryString.ToString()));
 
             var response = new ContentsDto
             {
                 Total = result.Total,
-                Items = result.Take(200).Select(x => ContentDto.FromContent(x, context.Base)).ToArray()
+                Items = result.Take(200).Select(x => ContentDto.FromContent(x, context)).ToArray()
             };
 
-            var options = controllerOptions.Value;
-
-            if (options.EnableSurrogateKeys && response.Items.Length <= options.MaxItemsForSurrogateKeys)
+            if (controllerOptions.Value.EnableSurrogateKeys && response.Items.Length <= controllerOptions.Value.MaxItemsForSurrogateKeys)
             {
-                Response.Headers["Surrogate-Key"] = string.Join(" ", response.Items.Select(x => x.Id));
+                Response.Headers["Surrogate-Key"] = response.Items.ToSurrogateKeys();
             }
+
+            Response.Headers[HeaderNames.ETag] = response.Items.ToManyEtag(response.Total);
 
             return Ok(response);
         }
@@ -161,29 +159,29 @@ namespace Squidex.Areas.Api.Controllers.Contents
         /// <remarks>
         /// You can read the generated documentation for your app at /api/content/{appName}/docs
         /// </remarks>
-        [MustBeAppReader]
         [HttpGet]
         [Route("content/{app}/{name}/{id}/")]
+        [ApiPermission]
         [ApiCosts(1)]
         public async Task<IActionResult> GetContent(string app, string name, Guid id)
         {
-            var context = Context().WithSchemaName(name);
-            var content = await contentQuery.FindContentAsync(context, id);
+            var context = Context();
+            var content = await contentQuery.FindContentAsync(context, name, id);
 
-            var response = ContentDto.FromContent(content, context.Base);
-
-            Response.Headers["ETag"] = content.Version.ToString();
+            var response = ContentDto.FromContent(content, context);
 
             if (controllerOptions.Value.EnableSurrogateKeys)
             {
                 Response.Headers["Surrogate-Key"] = content.Id.ToString();
             }
 
+            Response.Headers[HeaderNames.ETag] = content.Version.ToString();
+
             return Ok(response);
         }
 
         /// <summary>
-        /// Get a content item with a specific version.
+        /// Get a content by version.
         /// </summary>
         /// <param name="app">The name of the app.</param>
         /// <param name="name">The name of the schema.</param>
@@ -197,23 +195,23 @@ namespace Squidex.Areas.Api.Controllers.Contents
         /// <remarks>
         /// You can read the generated documentation for your app at /api/content/{appName}/docs
         /// </remarks>
-        [MustBeAppReader]
         [HttpGet]
         [Route("content/{app}/{name}/{id}/{version}/")]
+        [ApiPermission(Permissions.AppContentsRead)]
         [ApiCosts(1)]
         public async Task<IActionResult> GetContentVersion(string app, string name, Guid id, int version)
         {
-            var context = Context().WithSchemaName(name);
-            var content = await contentQuery.FindContentAsync(context, id, version);
+            var context = Context();
+            var content = await contentQuery.FindContentAsync(context, name, id, version);
 
-            var response = ContentDto.FromContent(content, context.Base);
-
-            Response.Headers["ETag"] = content.Version.ToString();
+            var response = ContentDto.FromContent(content, context);
 
             if (controllerOptions.Value.EnableSurrogateKeys)
             {
                 Response.Headers["Surrogate-Key"] = content.Id.ToString();
             }
+
+            Response.Headers[HeaderNames.ETag] = content.Version.ToString();
 
             return Ok(response.Data);
         }
@@ -233,13 +231,20 @@ namespace Squidex.Areas.Api.Controllers.Contents
         /// <remarks>
         /// You can read the generated documentation for your app at /api/content/{appName}/docs
         /// </remarks>
-        [MustBeAppEditor]
         [HttpPost]
         [Route("content/{app}/{name}/")]
+        [ApiPermission(Permissions.AppContentsCreate)]
         [ApiCosts(1)]
         public async Task<IActionResult> PostContent(string app, string name, [FromBody] NamedContentData request, [FromQuery] bool publish = false)
         {
-            await contentQuery.ThrowIfSchemaNotExistsAsync(Context().WithSchemaName(name));
+            await contentQuery.ThrowIfSchemaNotExistsAsync(Context(), name);
+
+            var publishPermission = Permissions.ForApp(Permissions.AppContentsPublish, app, name);
+
+            if (publish && !User.Permissions().Includes(publishPermission))
+            {
+                return new StatusCodeResult(123);
+            }
 
             var command = new CreateContent { ContentId = Guid.NewGuid(), Data = request.ToCleaned(), Publish = publish };
 
@@ -267,13 +272,13 @@ namespace Squidex.Areas.Api.Controllers.Contents
         /// <remarks>
         /// You can read the generated documentation for your app at /api/content/{appName}/docs
         /// </remarks>
-        [MustBeAppEditor]
         [HttpPut]
         [Route("content/{app}/{name}/{id}/")]
+        [ApiPermission(Permissions.AppContentsUpdate)]
         [ApiCosts(1)]
         public async Task<IActionResult> PutContent(string app, string name, Guid id, [FromBody] NamedContentData request, [FromQuery] bool asDraft = false)
         {
-            await contentQuery.ThrowIfSchemaNotExistsAsync(Context().WithSchemaName(name));
+            await contentQuery.ThrowIfSchemaNotExistsAsync(Context(), name);
 
             var command = new UpdateContent { ContentId = id, Data = request.ToCleaned(), AsDraft = asDraft };
             var context = await CommandBus.PublishAsync(command);
@@ -300,13 +305,13 @@ namespace Squidex.Areas.Api.Controllers.Contents
         /// <remarks>
         /// You can read the generated documentation for your app at /api/content/{appName}/docs
         /// </remarks>
-        [MustBeAppEditor]
         [HttpPatch]
         [Route("content/{app}/{name}/{id}/")]
+        [ApiPermission(Permissions.AppContentsUpdate)]
         [ApiCosts(1)]
         public async Task<IActionResult> PatchContent(string app, string name, Guid id, [FromBody] NamedContentData request, [FromQuery] bool asDraft = false)
         {
-            await contentQuery.ThrowIfSchemaNotExistsAsync(Context().WithSchemaName(name));
+            await contentQuery.ThrowIfSchemaNotExistsAsync(Context(), name);
 
             var command = new PatchContent { ContentId = id, Data = request.ToCleaned(), AsDraft = asDraft };
             var context = await CommandBus.PublishAsync(command);
@@ -332,13 +337,13 @@ namespace Squidex.Areas.Api.Controllers.Contents
         /// <remarks>
         /// You can read the generated documentation for your app at /api/content/{appName}/docs
         /// </remarks>
-        [MustBeAppEditor]
         [HttpPut]
         [Route("content/{app}/{name}/{id}/publish/")]
+        [ApiPermission(Permissions.AppContentsPublish)]
         [ApiCosts(1)]
         public async Task<IActionResult> PublishContent(string app, string name, Guid id, string dueTime = null)
         {
-            await contentQuery.ThrowIfSchemaNotExistsAsync(Context().WithSchemaName(name));
+            await contentQuery.ThrowIfSchemaNotExistsAsync(Context(), name);
 
             var command = CreateCommand(id, Status.Published, dueTime);
 
@@ -362,13 +367,13 @@ namespace Squidex.Areas.Api.Controllers.Contents
         /// <remarks>
         /// You can read the generated documentation for your app at /api/content/{appName}/docs
         /// </remarks>
-        [MustBeAppEditor]
         [HttpPut]
         [Route("content/{app}/{name}/{id}/unpublish/")]
+        [ApiPermission(Permissions.AppContentsUnpublish)]
         [ApiCosts(1)]
         public async Task<IActionResult> UnpublishContent(string app, string name, Guid id, string dueTime = null)
         {
-            await contentQuery.ThrowIfSchemaNotExistsAsync(Context().WithSchemaName(name));
+            await contentQuery.ThrowIfSchemaNotExistsAsync(Context(), name);
 
             var command = CreateCommand(id, Status.Draft, dueTime);
 
@@ -392,13 +397,13 @@ namespace Squidex.Areas.Api.Controllers.Contents
         /// <remarks>
         /// You can read the generated documentation for your app at /api/content/{appName}/docs
         /// </remarks>
-        [MustBeAppEditor]
         [HttpPut]
         [Route("content/{app}/{name}/{id}/archive/")]
+        [ApiPermission(Permissions.AppContentsArchive)]
         [ApiCosts(1)]
         public async Task<IActionResult> ArchiveContent(string app, string name, Guid id, string dueTime = null)
         {
-            await contentQuery.ThrowIfSchemaNotExistsAsync(Context().WithSchemaName(name));
+            await contentQuery.ThrowIfSchemaNotExistsAsync(Context(), name);
 
             var command = CreateCommand(id, Status.Archived, dueTime);
 
@@ -422,13 +427,13 @@ namespace Squidex.Areas.Api.Controllers.Contents
         /// <remarks>
         /// You can read the generated documentation for your app at /api/content/{appName}/docs
         /// </remarks>
-        [MustBeAppEditor]
         [HttpPut]
         [Route("content/{app}/{name}/{id}/restore/")]
+        [ApiPermission(Permissions.AppContentsRestore)]
         [ApiCosts(1)]
         public async Task<IActionResult> RestoreContent(string app, string name, Guid id, string dueTime = null)
         {
-            await contentQuery.ThrowIfSchemaNotExistsAsync(Context().WithSchemaName(name));
+            await contentQuery.ThrowIfSchemaNotExistsAsync(Context(), name);
 
             var command = CreateCommand(id, Status.Draft, dueTime);
 
@@ -438,7 +443,7 @@ namespace Squidex.Areas.Api.Controllers.Contents
         }
 
         /// <summary>
-        /// Discard changes of a content item.
+        /// Discard changes.
         /// </summary>
         /// <param name="app">The name of the app.</param>
         /// <param name="name">The name of the schema.</param>
@@ -451,13 +456,13 @@ namespace Squidex.Areas.Api.Controllers.Contents
         /// <remarks>
         /// You can read the generated documentation for your app at /api/content/{appName}/docs
         /// </remarks>
-        [MustBeAppEditor]
         [HttpPut]
         [Route("content/{app}/{name}/{id}/discard/")]
+        [ApiPermission(Permissions.AppContentsDiscard)]
         [ApiCosts(1)]
         public async Task<IActionResult> DiscardChanges(string app, string name, Guid id)
         {
-            await contentQuery.ThrowIfSchemaNotExistsAsync(Context().WithSchemaName(name));
+            await contentQuery.ThrowIfSchemaNotExistsAsync(Context(), name);
 
             var command = new DiscardChanges { ContentId = id };
 
@@ -479,13 +484,13 @@ namespace Squidex.Areas.Api.Controllers.Contents
         /// <remarks>
         /// You can create an generated documentation for your app at /api/content/{appName}/docs
         /// </remarks>
-        [MustBeAppEditor]
         [HttpDelete]
         [Route("content/{app}/{name}/{id}/")]
+        [ApiPermission(Permissions.AppContentsDelete)]
         [ApiCosts(1)]
         public async Task<IActionResult> DeleteContent(string app, string name, Guid id)
         {
-            await contentQuery.ThrowIfSchemaNotExistsAsync(Context().WithSchemaName(name));
+            await contentQuery.ThrowIfSchemaNotExistsAsync(Context(), name);
 
             var command = new DeleteContent { ContentId = id };
 
@@ -511,11 +516,12 @@ namespace Squidex.Areas.Api.Controllers.Contents
             return new ChangeContentStatus { Status = status, ContentId = id, DueTime = dt };
         }
 
-        private ContentQueryContext Context()
+        private QueryContext Context()
         {
-            return new ContentQueryContext(QueryContext.Create(App, User)
-                .WithLanguages(Request.Headers["X-Languages"]))
+            return QueryContext.Create(App, User)
+                .WithAssetUrlsToResolve(Request.Headers["X-Resolve-Urls"])
                 .WithFlatten(Request.Headers.ContainsKey("X-Flatten"))
+                .WithLanguages(Request.Headers["X-Languages"])
                 .WithUnpublished(Request.Headers.ContainsKey("X-Unpublished"));
         }
     }

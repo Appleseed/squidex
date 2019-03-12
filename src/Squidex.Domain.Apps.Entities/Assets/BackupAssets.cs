@@ -8,11 +8,9 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Newtonsoft.Json.Linq;
-using Squidex.Domain.Apps.Entities.Assets.Repositories;
+using Squidex.Domain.Apps.Core.Tags;
 using Squidex.Domain.Apps.Entities.Assets.State;
 using Squidex.Domain.Apps.Entities.Backup;
-using Squidex.Domain.Apps.Entities.Tags;
 using Squidex.Domain.Apps.Events.Assets;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Assets;
@@ -27,23 +25,18 @@ namespace Squidex.Domain.Apps.Entities.Assets
         private const string TagsFile = "AssetTags.json";
         private readonly HashSet<Guid> assetIds = new HashSet<Guid>();
         private readonly IAssetStore assetStore;
-        private readonly IAssetRepository assetRepository;
         private readonly ITagService tagService;
 
         public override string Name { get; } = "Assets";
 
-        public BackupAssets(IStore<Guid> store,
-            IAssetStore assetStore,
-            IAssetRepository assetRepository,
-            ITagService tagService)
+        public BackupAssets(IStore<Guid> store, IAssetStore assetStore, ITagService tagService)
             : base(store)
         {
             Guard.NotNull(assetStore, nameof(assetStore));
-            Guard.NotNull(assetRepository, nameof(assetRepository));
             Guard.NotNull(tagService, nameof(tagService));
 
             this.assetStore = assetStore;
-            this.assetRepository = assetRepository;
+
             this.tagService = tagService;
         }
 
@@ -65,17 +58,19 @@ namespace Squidex.Domain.Apps.Entities.Assets
             return TaskHelper.Done;
         }
 
-        public override Task RestoreEventAsync(Envelope<IEvent> @event, Guid appId, BackupReader reader, RefToken actor)
+        public override async Task<bool> RestoreEventAsync(Envelope<IEvent> @event, Guid appId, BackupReader reader, RefToken actor)
         {
             switch (@event.Payload)
             {
                 case AssetCreated assetCreated:
-                    return ReadAssetAsync(assetCreated.AssetId, assetCreated.FileVersion, reader);
+                    await ReadAssetAsync(assetCreated.AssetId, assetCreated.FileVersion, reader);
+                    break;
                 case AssetUpdated assetUpdated:
-                    return ReadAssetAsync(assetUpdated.AssetId, assetUpdated.FileVersion, reader);
+                    await ReadAssetAsync(assetUpdated.AssetId, assetUpdated.FileVersion, reader);
+                    break;
             }
 
-            return TaskHelper.Done;
+            return true;
         }
 
         public override async Task RestoreAsync(Guid appId, BackupReader reader)
@@ -87,16 +82,16 @@ namespace Squidex.Domain.Apps.Entities.Assets
 
         private async Task RestoreTagsAsync(Guid appId, BackupReader reader)
         {
-            var tags = await reader.ReadJsonAttachmentAsync(TagsFile);
+            var tags = await reader.ReadJsonAttachmentAsync<TagSet>(TagsFile);
 
-            await tagService.RebuildTagsAsync(appId, TagGroups.Assets, tags.ToObject<TagSet>());
+            await tagService.RebuildTagsAsync(appId, TagGroups.Assets, tags);
         }
 
         private async Task BackupTagsAsync(Guid appId, BackupWriter writer)
         {
             var tags = await tagService.GetExportableTagsAsync(appId, TagGroups.Assets);
 
-            await writer.WriteJsonAsync(TagsFile, JObject.FromObject(tags));
+            await writer.WriteJsonAsync(TagsFile, tags);
         }
 
         private Task WriteAssetAsync(Guid assetId, long fileVersion, BackupWriter writer)

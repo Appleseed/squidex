@@ -5,16 +5,12 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
-using NJsonSchema.Annotations;
 using NodaTime;
 using Squidex.Domain.Apps.Core.Schemas;
 using Squidex.Infrastructure.Reflection;
 
 namespace Squidex.Areas.Api.Controllers.Schemas.Models.Fields
 {
-    [JsonSchema("DateTime")]
     public sealed class DateTimeFieldPropertiesDto : FieldPropertiesDto
     {
         /// <summary>
@@ -35,13 +31,11 @@ namespace Squidex.Areas.Api.Controllers.Schemas.Models.Fields
         /// <summary>
         /// The editor that is used to manage this field.
         /// </summary>
-        [JsonConverter(typeof(StringEnumConverter))]
         public DateTimeFieldEditor Editor { get; set; }
 
         /// <summary>
         /// The calculated default value for the field value.
         /// </summary>
-        [JsonConverter(typeof(StringEnumConverter))]
         public DateTimeCalculatedDefaultValue? CalculatedDefaultValue { get; set; }
 
         public override FieldProperties ToProperties()

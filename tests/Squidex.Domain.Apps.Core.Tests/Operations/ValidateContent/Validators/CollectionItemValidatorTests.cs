@@ -47,8 +47,8 @@ namespace Squidex.Domain.Apps.Core.Operations.ValidateContent.Validators
             errors.Should().BeEquivalentTo(
                 new[]
                 {
-                    "[2]: Must be greater or equals than '2'.",
-                    "[4]: Must be less or equals than '4'."
+                    "[2]: Must be between '2' and '4'.",
+                    "[4]: Must be between '2' and '4'."
                 });
         }
     }

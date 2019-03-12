@@ -5,14 +5,18 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { Component, forwardRef } from '@angular/core';
-import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
+import { ChangeDetectorRef, Component, forwardRef, Input } from '@angular/core';
+import { NG_VALUE_ACCESSOR } from '@angular/forms';
 
-import { Types } from '@app/framework/internal';
+import { StatefulControlComponent, Types } from '@app/framework/internal';
 
 export const SQX_TOGGLE_CONTROL_VALUE_ACCESSOR: any = {
     provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => ToggleComponent), multi: true
 };
+
+interface State {
+    isChecked: boolean | null;
+}
 
 @Component({
     selector: 'sqx-toggle',
@@ -20,37 +24,44 @@ export const SQX_TOGGLE_CONTROL_VALUE_ACCESSOR: any = {
     templateUrl: './toggle.component.html',
     providers: [SQX_TOGGLE_CONTROL_VALUE_ACCESSOR]
 })
-export class ToggleComponent implements ControlValueAccessor {
-    private callChange = (v: any) => { /* NOOP */ };
-    private callTouched = () => { /* NOOP */ };
+export class ToggleComponent extends StatefulControlComponent<State, boolean | null> {
+    @Input()
+    public threeStates = false;
 
-    public isChecked: boolean | null = null;
-    public isDisabled = false;
+    constructor(changeDetector: ChangeDetectorRef) {
+        super(changeDetector, {
+            isChecked: null
+        });
+    }
 
     public writeValue(obj: any) {
-        this.isChecked = Types.isBoolean(obj) ? obj : null;
+        const isChecked = Types.isBoolean(obj) ? obj : null;
+
+        this.next(s => ({ ...s, isChecked  }));
     }
 
-    public setDisabledState(isDisabled: boolean): void {
-        this.isDisabled = isDisabled;
-    }
+    public changeState(event: MouseEvent) {
+        let { isDisabled, isChecked } = this.snapshot;
 
-    public registerOnChange(fn: any) {
-        this.callChange = fn;
-    }
-
-    public registerOnTouched(fn: any) {
-        this.callTouched = fn;
-    }
-
-    public changeState() {
-        if (this.isDisabled) {
+        if (isDisabled) {
             return;
         }
 
-        this.isChecked = !(this.isChecked === true);
+        if (this.threeStates && (event.ctrlKey || event.shiftKey)) {
+            if (isChecked) {
+                isChecked = null;
+            } else if (isChecked === null) {
+                isChecked = false;
+            } else {
+                isChecked = true;
+            }
+        } else {
+            isChecked = !(isChecked === true);
+        }
 
-        this.callChange(this.isChecked);
+        this.next(s => ({ ...s, isChecked }));
+
+        this.callChange(isChecked);
         this.callTouched();
     }
 }

@@ -6,26 +6,26 @@
 // ==========================================================================
 
 using System;
-using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using NSwag.Annotations;
+using Microsoft.Net.Http.Headers;
 using Squidex.Areas.Api.Controllers.Apps.Models;
 using Squidex.Domain.Apps.Entities;
 using Squidex.Domain.Apps.Entities.Apps.Commands;
 using Squidex.Domain.Apps.Entities.Apps.Services;
+using Squidex.Infrastructure;
 using Squidex.Infrastructure.Commands;
 using Squidex.Infrastructure.Security;
 using Squidex.Pipeline;
+using Squidex.Shared;
+using Squidex.Shared.Identity;
 
 namespace Squidex.Areas.Api.Controllers.Apps
 {
     /// <summary>
     /// Manages and configures apps.
     /// </summary>
-    [ApiAuthorize]
-    [ApiExceptionFilter]
-    [SwaggerTag(nameof(Apps))]
+    [ApiExplorerSettings(GroupName = nameof(Apps))]
     public sealed class AppsController : ApiController
     {
         private readonly IAppProvider appProvider;
@@ -53,14 +53,18 @@ namespace Squidex.Areas.Api.Controllers.Apps
         [HttpGet]
         [Route("apps/")]
         [ProducesResponseType(typeof(AppDto[]), 200)]
+        [ApiPermission]
         [ApiCosts(0)]
         public async Task<IActionResult> GetApps()
         {
-            var subject = HttpContext.User.OpenIdSubject();
+            var userOrClientId = HttpContext.User.UserOrClientId();
+            var userPermissions = HttpContext.User.Permissions();
 
-            var entities = await appProvider.GetUserApps(subject);
+            var entities = await appProvider.GetUserApps(userOrClientId, userPermissions);
 
-            var response = entities.Select(a => AppDto.FromApp(a, subject, appPlansProvider)).ToList();
+            var response = entities.ToArray(a => AppDto.FromApp(a, userOrClientId, userPermissions, appPlansProvider));
+
+            Response.Headers[HeaderNames.ETag] = response.ToManyEtag();
 
             return Ok(response);
         }
@@ -83,20 +87,21 @@ namespace Squidex.Areas.Api.Controllers.Apps
         [ProducesResponseType(typeof(AppCreatedDto), 201)]
         [ProducesResponseType(typeof(ErrorDto), 400)]
         [ProducesResponseType(typeof(ErrorDto), 409)]
+        [ApiPermission]
         [ApiCosts(1)]
         public async Task<IActionResult> PostApp([FromBody] CreateAppDto request)
         {
             var context = await CommandBus.PublishAsync(request.ToCommand());
 
             var result = context.Result<EntityCreatedResult<Guid>>();
-            var response = AppCreatedDto.FromResult(result, appPlansProvider);
+            var response = AppCreatedDto.FromResult(request.Name, result, appPlansProvider);
 
             return CreatedAtAction(nameof(GetApps), response);
         }
 
         /// <summary>
         /// Archive the app.
-        /// /// </summary>
+        /// </summary>
         /// <param name="app">The name of the app to archive.</param>
         /// <returns>
         /// 204 => App archived.
@@ -104,9 +109,8 @@ namespace Squidex.Areas.Api.Controllers.Apps
         /// </returns>
         [HttpDelete]
         [Route("apps/{app}/")]
-        [AppApi]
+        [ApiPermission(Permissions.AppDelete)]
         [ApiCosts(1)]
-        [MustBeAppOwner]
         public async Task<IActionResult> DeleteApp(string app)
         {
             await CommandBus.PublishAsync(new ArchiveApp());

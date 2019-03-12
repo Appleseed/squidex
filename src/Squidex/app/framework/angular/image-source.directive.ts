@@ -7,16 +7,16 @@
 
 import { AfterViewInit, Directive, ElementRef, HostListener, Input, OnChanges, OnDestroy, OnInit, Renderer2 } from '@angular/core';
 
-import { MathHelper } from './../utils/math-helper';
+import { MathHelper, ResourceOwner } from '@app/framework/internal';
+
+const LAYOUT_CACHE: { [key: string]: { width: number, height: number } } = {};
 
 @Directive({
     selector: '[sqxImageSource]'
 })
-export class ImageSourceDirective implements OnChanges, OnDestroy, OnInit, AfterViewInit {
-    private parentResizeListener: Function;
-
-    private loadingTimer: any;
+export class ImageSourceDirective extends ResourceOwner implements OnChanges, OnDestroy, OnInit, AfterViewInit {
     private size: any;
+    private loadTimer: any;
     private loadRetries = 0;
     private loadQuery: string | null = null;
 
@@ -27,18 +27,22 @@ export class ImageSourceDirective implements OnChanges, OnDestroy, OnInit, After
     public retryCount = 10;
 
     @Input()
+    public layoutKey: string;
+
+    @Input()
     public parent: any = null;
 
     constructor(
         private readonly element: ElementRef,
         private readonly renderer: Renderer2
     ) {
+        super();
     }
 
     public ngOnDestroy() {
-        clearTimeout(this.loadingTimer);
+        super.ngOnDestroy();
 
-        this.parentResizeListener();
+        clearTimeout(this.loadTimer);
     }
 
     public ngOnInit() {
@@ -46,10 +50,10 @@ export class ImageSourceDirective implements OnChanges, OnDestroy, OnInit, After
             this.parent = this.renderer.parentNode(this.element.nativeElement);
         }
 
-        this.parentResizeListener =
+        this.own(
             this.renderer.listen(this.parent, 'resize', () => {
                 this.resize();
-            });
+            }));
     }
 
     public ngAfterViewInit() {
@@ -76,7 +80,21 @@ export class ImageSourceDirective implements OnChanges, OnDestroy, OnInit, After
     }
 
     private resize() {
-        this.size = this.parent.getBoundingClientRect();
+        let size: { width: number, height: number } = null!;
+
+        if (this.layoutKey) {
+            size = LAYOUT_CACHE[this.layoutKey];
+        }
+
+        if (!size) {
+            size = { width: this.parent.offsetWidth, height: this.parent.offsetHeight };
+        }
+
+        this.size = size;
+
+        if (this.layoutKey) {
+            LAYOUT_CACHE[this.layoutKey] = size;
+        }
 
         this.renderer.setStyle(this.element.nativeElement, 'display', 'inline-block');
         this.renderer.setStyle(this.element.nativeElement, 'width', this.size.width + 'px');
@@ -96,7 +114,7 @@ export class ImageSourceDirective implements OnChanges, OnDestroy, OnInit, After
         if (w > 0 && h > 0) {
             let source = `${this.imageSource}&width=${w}&height=${h}&mode=Crop`;
 
-            if (this.loadQuery !== null) {
+            if (this.loadQuery) {
                 source += `&q=${this.loadQuery}`;
             }
 
@@ -108,7 +126,7 @@ export class ImageSourceDirective implements OnChanges, OnDestroy, OnInit, After
         this.loadRetries++;
 
         if (this.loadRetries <= 10) {
-            this.loadingTimer =
+            this.loadTimer =
                 setTimeout(() => {
                     this.loadQuery = MathHelper.guid();
 

@@ -5,17 +5,20 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { Component, Input, OnDestroy, OnInit } from '@angular/core';
+import { Component, Input, OnInit } from '@angular/core';
 import { FormControl, FormGroup } from '@angular/forms';
-import { Observable, Subscription } from 'rxjs';
-import { map, startWith } from 'rxjs/operators';
+import { Observable } from 'rxjs';
 
 import {
     AppPatternDto,
     FieldDto,
+    hasNoValue$,
     ImmutableArray,
     ModalModel,
-    StringFieldPropertiesDto
+    ResourceOwner,
+    RootFieldDto,
+    StringFieldPropertiesDto,
+    Types
 } from '@app/shared';
 
 @Component({
@@ -23,9 +26,7 @@ import {
     styleUrls: ['string-validation.component.scss'],
     templateUrl: 'string-validation.component.html'
 })
-export class StringValidationComponent implements OnDestroy, OnInit {
-    private patternSubscription: Subscription;
-
+export class StringValidationComponent extends ResourceOwner implements OnInit {
     @Input()
     public editForm: FormGroup;
 
@@ -45,11 +46,16 @@ export class StringValidationComponent implements OnDestroy, OnInit {
     public patternName: string;
     public patternsModal = new ModalModel();
 
-    public ngOnDestroy() {
-        this.patternSubscription.unsubscribe();
-    }
+    public showUnique: boolean;
 
     public ngOnInit() {
+        this.showUnique = Types.is(this.field, RootFieldDto) && !this.field.isLocalizable;
+
+        if (this.showUnique) {
+            this.editForm.setControl('isUnique',
+                new FormControl(this.properties.isUnique));
+        }
+
         this.editForm.setControl('maxLength',
             new FormControl(this.properties.maxLength));
 
@@ -66,24 +72,23 @@ export class StringValidationComponent implements OnDestroy, OnInit {
             new FormControl(this.properties.defaultValue));
 
         this.showDefaultValue =
-            this.editForm.controls['isRequired'].valueChanges.pipe(
-                startWith(this.properties.isRequired), map(x => !x));
+            hasNoValue$(this.editForm.controls['isRequired']);
 
         this.showPatternSuggestions =
-            this.editForm.controls['pattern'].valueChanges.pipe(
-                startWith(''), map(x => !x || x.trim().length === 0));
+            hasNoValue$(this.editForm.controls['pattern']);
 
         this.showPatternMessage =
             this.editForm.controls['pattern'].value && this.editForm.controls['pattern'].value.trim().length > 0;
 
-        this.patternSubscription =
+        this.own(
             this.editForm.controls['pattern'].valueChanges
                 .subscribe((value: string) => {
                     if (!value || value.length === 0) {
                         this.editForm.controls['patternMessage'].setValue(undefined);
                     }
+
                     this.setPatternName();
-                });
+                }));
 
         this.setPatternName();
     }

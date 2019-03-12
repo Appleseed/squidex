@@ -6,8 +6,8 @@
 // ==========================================================================
 
 using System;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using NSwag.Annotations;
 using Squidex.Infrastructure.Assets;
 using Squidex.Infrastructure.Commands;
 using Squidex.Pipeline;
@@ -17,9 +17,7 @@ namespace Squidex.Areas.Api.Controllers.Backups
     /// <summary>
     /// Manages backups for app.
     /// </summary>
-    [ApiExceptionFilter]
-    [AppApi]
-    [SwaggerTag(nameof(Backups))]
+    [ApiExplorerSettings(GroupName = nameof(Backups))]
     public class BackupContentController : ApiController
     {
         private readonly IAssetStore assetStore;
@@ -41,11 +39,13 @@ namespace Squidex.Areas.Api.Controllers.Backups
         /// </returns>
         [HttpGet]
         [Route("apps/{app}/backups/{id}")]
-        [ProducesResponseType(200)]
+        [ResponseCache(Duration = 3600 * 24 * 30)]
+        [ProducesResponseType(typeof(FileResult), 200)]
         [ApiCosts(0)]
+        [AllowAnonymous]
         public IActionResult GetBackupContent(string app, Guid id)
         {
-            return new FileCallbackResult("application/zip", "Backup.zip", bodyStream =>
+            return new FileCallbackResult("application/zip", "Backup.zip", false, bodyStream =>
             {
                 return assetStore.DownloadAsync(id.ToString(), 0, null, bodyStream);
             });

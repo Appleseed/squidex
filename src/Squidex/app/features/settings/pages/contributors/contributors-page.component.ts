@@ -8,14 +8,17 @@
 import { Component, Injectable, OnInit } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
 import { Observable } from 'rxjs';
-import { filter, onErrorResumeNext, withLatestFrom } from 'rxjs/operators';
+import { onErrorResumeNext, withLatestFrom } from 'rxjs/operators';
 
 import {
     AppContributorDto,
     AppsState,
+    AssignContributorDto,
     AssignContributorForm,
     AutocompleteSource,
     ContributorsState,
+    DialogService,
+    RolesState,
     Types,
     UserDto,
     UsersService
@@ -31,7 +34,7 @@ export class UsersDataSource implements AutocompleteSource {
 
     public find(query: string): Observable<any[]> {
         return this.usersService.getUsers(query).pipe(
-            withLatestFrom(this.contributorsState.contributors.pipe(filter(x => !!x)), (users, contributors) => {
+            withLatestFrom(this.contributorsState.contributors, (users, contributors) => {
                 const results: any[] = [];
 
                 for (let user of users) {
@@ -53,19 +56,21 @@ export class UsersDataSource implements AutocompleteSource {
     ]
 })
 export class ContributorsPageComponent implements OnInit {
-    public usersPermissions = [ 'Owner', 'Developer', 'Editor' ];
-
     public assignContributorForm = new AssignContributorForm(this.formBuilder);
 
     constructor(
         public readonly appsState: AppsState,
         public readonly contributorsState: ContributorsState,
+        public readonly rolesState: RolesState,
         public readonly usersDataSource: UsersDataSource,
+        private readonly dialogs: DialogService,
         private readonly formBuilder: FormBuilder
     ) {
     }
 
     public ngOnInit() {
+        this.rolesState.load().pipe(onErrorResumeNext()).subscribe();
+
         this.contributorsState.load().pipe(onErrorResumeNext()).subscribe();
     }
 
@@ -77,8 +82,8 @@ export class ContributorsPageComponent implements OnInit {
         this.contributorsState.revoke(contributor).pipe(onErrorResumeNext()).subscribe();
     }
 
-    public changePermission(contributor: AppContributorDto, permission: string) {
-        this.contributorsState.assign(new AppContributorDto(contributor.contributorId, permission)).pipe(onErrorResumeNext()).subscribe();
+    public changeRole(contributor: AppContributorDto, role: string) {
+        this.contributorsState.assign(new AssignContributorDto(contributor.contributorId, role)).pipe(onErrorResumeNext()).subscribe();
     }
 
     public assignContributor() {
@@ -91,11 +96,15 @@ export class ContributorsPageComponent implements OnInit {
                 user = user.id;
             }
 
-            const requestDto = new AppContributorDto(user, 'Editor');
+            const requestDto = new AssignContributorDto(user, 'Editor', true);
 
             this.contributorsState.assign(requestDto)
-                .subscribe(dto => {
-                    this.assignContributorForm.submitCompleted();
+                .subscribe(wasInvited => {
+                    this.assignContributorForm.submitCompleted({});
+
+                    if (wasInvited) {
+                        this.dialogs.notifyInfo('A new user with the entered email address has been created and assigned as contributor.');
+                    }
                 }, error => {
                     this.assignContributorForm.submitFailed(error);
                 });

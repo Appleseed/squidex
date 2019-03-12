@@ -6,7 +6,7 @@
 // ==========================================================================
 
 using System;
-using Newtonsoft.Json;
+using System.Runtime.Serialization;
 using Squidex.Domain.Apps.Core;
 using Squidex.Domain.Apps.Core.Schemas;
 using Squidex.Domain.Apps.Events;
@@ -14,7 +14,6 @@ using Squidex.Domain.Apps.Events.Schemas;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Dispatching;
 using Squidex.Infrastructure.EventSourcing;
-using Squidex.Infrastructure.Reflection;
 using Squidex.Infrastructure.States;
 
 namespace Squidex.Domain.Apps.Entities.Schemas.State
@@ -22,129 +21,31 @@ namespace Squidex.Domain.Apps.Entities.Schemas.State
     [CollectionName("Schemas")]
     public class SchemaState : DomainObjectState<SchemaState>, ISchemaEntity
     {
-        [JsonProperty]
+        [DataMember]
         public NamedId<Guid> AppId { get; set; }
 
-        [JsonProperty]
-        public string Name { get; set; }
+        [DataMember]
+        public long SchemaFieldsTotal { get; set; }
 
-        [JsonProperty]
-        public string Category { get; set; }
-
-        [JsonProperty]
-        public int TotalFields { get; set; } = 0;
-
-        [JsonProperty]
+        [DataMember]
         public bool IsDeleted { get; set; }
 
-        [JsonProperty]
-        public bool IsSingleton { get; set; }
-
-        [JsonProperty]
-        public string ScriptQuery { get; set; }
-
-        [JsonProperty]
-        public string ScriptCreate { get; set; }
-
-        [JsonProperty]
-        public string ScriptUpdate { get; set; }
-
-        [JsonProperty]
-        public string ScriptDelete { get; set; }
-
-        [JsonProperty]
-        public string ScriptChange { get; set; }
-
-        [JsonProperty]
+        [DataMember]
         public Schema SchemaDef { get; set; }
 
-        [JsonIgnore]
-        public bool IsPublished
+        protected void On(SchemaCreated @event)
         {
-            get { return SchemaDef.IsPublished; }
-        }
-
-        protected void On(SchemaCreated @event, FieldRegistry registry)
-        {
-            Name = @event.Name;
-
-            IsSingleton = @event.Singleton;
-
-            var schema = new Schema(@event.Name);
-
-            if (@event.Properties != null)
-            {
-                schema = schema.Update(@event.Properties);
-            }
-
-            if (@event.Publish)
-            {
-                schema = schema.Publish();
-            }
-
-            if (@event.Fields != null)
-            {
-                foreach (var eventField in @event.Fields)
-                {
-                    TotalFields++;
-
-                    var partitioning = Partitioning.FromString(eventField.Partitioning);
-
-                    var field = registry.CreateRootField(TotalFields, eventField.Name, partitioning, eventField.Properties);
-
-                    if (field is ArrayField arrayField && eventField.Nested?.Count > 0)
-                    {
-                        foreach (var nestedEventField in eventField.Nested)
-                        {
-                            TotalFields++;
-
-                            var nestedField = registry.CreateNestedField(TotalFields, nestedEventField.Name, nestedEventField.Properties);
-
-                            if (nestedEventField.IsHidden)
-                            {
-                                nestedField = nestedField.Hide();
-                            }
-
-                            if (nestedEventField.IsDisabled)
-                            {
-                                nestedField = nestedField.Disable();
-                            }
-
-                            arrayField = arrayField.AddField(nestedField);
-                        }
-
-                        field = arrayField;
-                    }
-
-                    if (eventField.IsHidden)
-                    {
-                        field = field.Hide();
-                    }
-
-                    if (eventField.IsDisabled)
-                    {
-                        field = field.Disable();
-                    }
-
-                    if (eventField.IsLocked)
-                    {
-                        field = field.Lock();
-                    }
-
-                    schema = schema.AddField(field);
-                }
-            }
-
-            SchemaDef = schema;
+            SchemaDef = @event.Schema;
+            SchemaFieldsTotal = @event.Schema.MaxId();
 
             AppId = @event.AppId;
         }
 
-        protected void On(FieldAdded @event, FieldRegistry registry)
+        protected void On(FieldAdded @event)
         {
             if (@event.ParentFieldId != null)
             {
-                var field = registry.CreateNestedField(@event.FieldId.Id, @event.Name, @event.Properties);
+                var field = @event.Properties.CreateNestedField(@event.FieldId.Id, @event.Name);
 
                 SchemaDef = SchemaDef.UpdateField(@event.ParentFieldId.Id, x => ((ArrayField)x).AddField(field));
             }
@@ -152,90 +53,95 @@ namespace Squidex.Domain.Apps.Entities.Schemas.State
             {
                 var partitioning = Partitioning.FromString(@event.Partitioning);
 
-                var field = registry.CreateRootField(@event.FieldId.Id, @event.Name, partitioning, @event.Properties);
+                var field = @event.Properties.CreateRootField(@event.FieldId.Id, @event.Name, partitioning);
 
                 SchemaDef = SchemaDef.DeleteField(@event.FieldId.Id);
                 SchemaDef = SchemaDef.AddField(field);
             }
 
-            TotalFields++;
+            SchemaFieldsTotal = Math.Max(SchemaFieldsTotal, @event.FieldId.Id);
         }
 
-        protected void On(SchemaCategoryChanged @event, FieldRegistry registry)
+        protected void On(SchemaCategoryChanged @event)
         {
-            Category = @event.Name;
+            SchemaDef = SchemaDef.ChangeCategory(@event.Name);
         }
 
-        protected void On(SchemaPublished @event, FieldRegistry registry)
+        protected void On(SchemaPreviewUrlsConfigured @event)
+        {
+            SchemaDef = SchemaDef.ConfigurePreviewUrls(@event.PreviewUrls);
+        }
+
+        protected void On(SchemaScriptsConfigured @event)
+        {
+            SchemaDef = SchemaDef.ConfigureScripts(@event.Scripts);
+        }
+
+        protected void On(SchemaPublished @event)
         {
             SchemaDef = SchemaDef.Publish();
         }
 
-        protected void On(SchemaUnpublished @event, FieldRegistry registry)
+        protected void On(SchemaUnpublished @event)
         {
             SchemaDef = SchemaDef.Unpublish();
         }
 
-        protected void On(SchemaUpdated @event, FieldRegistry registry)
+        protected void On(SchemaUpdated @event)
         {
             SchemaDef = SchemaDef.Update(@event.Properties);
         }
 
-        protected void On(SchemaFieldsReordered @event, FieldRegistry registry)
+        protected void On(SchemaFieldsReordered @event)
         {
             SchemaDef = SchemaDef.ReorderFields(@event.FieldIds, @event.ParentFieldId?.Id);
         }
 
-        protected void On(FieldUpdated @event, FieldRegistry registry)
+        protected void On(FieldUpdated @event)
         {
             SchemaDef = SchemaDef.UpdateField(@event.FieldId.Id, @event.Properties, @event.ParentFieldId?.Id);
         }
 
-        protected void On(FieldLocked @event, FieldRegistry registry)
+        protected void On(FieldLocked @event)
         {
             SchemaDef = SchemaDef.LockField(@event.FieldId.Id, @event.ParentFieldId?.Id);
         }
 
-        protected void On(FieldDisabled @event, FieldRegistry registry)
+        protected void On(FieldDisabled @event)
         {
             SchemaDef = SchemaDef.DisableField(@event.FieldId.Id, @event.ParentFieldId?.Id);
         }
 
-        protected void On(FieldEnabled @event, FieldRegistry registry)
+        protected void On(FieldEnabled @event)
         {
             SchemaDef = SchemaDef.EnableField(@event.FieldId.Id, @event.ParentFieldId?.Id);
         }
 
-        protected void On(FieldHidden @event, FieldRegistry registry)
+        protected void On(FieldHidden @event)
         {
             SchemaDef = SchemaDef.HideField(@event.FieldId.Id, @event.ParentFieldId?.Id);
         }
 
-        protected void On(FieldShown @event, FieldRegistry registry)
+        protected void On(FieldShown @event)
         {
             SchemaDef = SchemaDef.ShowField(@event.FieldId.Id, @event.ParentFieldId?.Id);
         }
 
-        protected void On(FieldDeleted @event, FieldRegistry registry)
+        protected void On(FieldDeleted @event)
         {
             SchemaDef = SchemaDef.DeleteField(@event.FieldId.Id, @event.ParentFieldId?.Id);
         }
 
-        protected void On(SchemaDeleted @event, FieldRegistry registry)
+        protected void On(SchemaDeleted @event)
         {
             IsDeleted = true;
         }
 
-        protected void On(ScriptsConfigured @event, FieldRegistry registry)
-        {
-            SimpleMapper.Map(@event, this);
-        }
-
-        public SchemaState Apply(Envelope<IEvent> @event, FieldRegistry registry)
+        public SchemaState Apply(Envelope<IEvent> @event)
         {
             var payload = (SquidexEvent)@event.Payload;
 
-            return Clone().Update(payload, @event.Headers, r => r.DispatchAction(payload, registry));
+            return Clone().Update(payload, @event.Headers, r => r.DispatchAction(payload));
         }
     }
 }

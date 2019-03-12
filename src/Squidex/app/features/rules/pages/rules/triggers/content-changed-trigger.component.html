@@ -1,17 +1,8 @@
-<h3 class="wizard-title">Trigger rule when an events for a schemas happens</h3>
-
 <ng-container *ngIf="!triggerForm.controls.handleAll.value">
     <table class="table table-middle table-sm table-fixed table-borderless">
         <colgroup>
-            <col style="width: 100%" />
-            <col style="width: 40px" />
-            <col style="width: 40px" />
-            <col style="width: 40px" />
-            <col style="width: 40px" />
-            <col style="width: 40px" />
-            <col style="width: 40px" />
-            <col style="width: 40px" />
-            <col style="width: 40px" />
+            <col style="width: 40%" />
+            <col style="width: 60%" />
             <col style="width: 40px" />
         </colgroup>
 
@@ -19,63 +10,24 @@
             <th>
                 Schema
             </th>
-            <th class="text-center">
-                <div class="rotated-label">All</div>
-            </th>
-            <th class="text-center">
-                <div class="rotated-label">Created</div>
-            </th>
-            <th class="text-center">
-                <div class="rotated-label">Updated</div>
-            </th>
-            <th class="text-center">
-                <div class="rotated-label">Deleted</div>
-            </th>
-            <th class="text-center">
-                <div class="rotated-label">Published</div>
-            </th>
-            <th class="text-center">
-                <div class="rotated-label">Unpublished</div>
-            </th>
-            <th class="text-center">
-                <div class="rotated-label">Archived</div>
-            </th>
-            <th class="text-center">
-                <div class="rotated-label">Restored</div>
+            <th>
+                Condition
             </th>
             <th></th>
         </tr>
 
-        <tr *ngFor="let schema of triggerSchemas">
+        <tr *ngFor="let triggerSchema of triggerSchemas">
             <td>
-                <span class="truncate">{{schema.schema.displayName}}</span>
-            </td>
-            <td class="text-center" title="Created">
-                <input type="checkbox" [ngModel]="schema.sendAll" (ngModelChange)="toggleAll(schema)" />
-            </td>
-            <td class="text-center" title="Created">
-                <input type="checkbox" [ngModel]="schema.sendCreate" (ngModelChange)="toggle(schema, 'sendCreate')" />
-            </td>
-            <td class="text-center" title="Updated">
-                <input type="checkbox" [ngModel]="schema.sendUpdate" (ngModelChange)="toggle(schema, 'sendUpdate')" />
-            </td>
-            <td class="text-center" title="Deleted">
-                <input type="checkbox" [ngModel]="schema.sendDelete" (ngModelChange)="toggle(schema, 'sendDelete')" />
-            </td>
-            <td class="text-center" title="Published">
-                <input type="checkbox" [ngModel]="schema.sendPublish" (ngModelChange)="toggle(schema, 'sendPublish')" />
-            </td>
-            <td class="text-center" title="Unpublished">
-                <input type="checkbox" [ngModel]="schema.sendUnpublish" (ngModelChange)="toggle(schema, 'sendUnpublish')" />
-            </td>
-            <td class="text-center" title="Archived">
-                <input type="checkbox" [ngModel]="schema.sendArchived" (ngModelChange)="toggle(schema, 'sendArchived')" />
-            </td>
-            <td class="text-center" title="Restored">
-                <input type="checkbox" [ngModel]="schema.sendRestored" (ngModelChange)="toggle(schema, 'sendRestored')" />
+                <span class="truncate">{{triggerSchema.schema.displayName}}</span>
             </td>
             <td class="text-center">
-                <button type="button" class="btn btn-link btn-secondary" (click)="removeSchema(schema)">
+                <input type="text" class="form-control code" placeholder="Optional condition as javascript expression"
+                    [ngModelOptions]="{ updateOn: 'blur' }"
+                    [ngModel]="triggerSchema.condition" 
+                    (ngModelChange)="updateCondition(triggerSchema.schema, $event)" />
+            </td>
+            <td class="text-center">
+                <button type="button" class="btn btn-text-secondary" (click)="removeSchema(triggerSchema)">
                     <i class="icon-close"></i>
                 </button>
             </td>
@@ -92,6 +44,31 @@
 
             <button type="submit" class="btn btn-success" [disabled]="!hasSchema">Add Schema</button>
         </form>
+    </div>
+    
+
+    <div class="help">
+        <h4>Conditions</h4>
+    
+        <p>Conditions are javascript expressions that define when to trigger, for example:</p>
+    
+        <ul class="help-examples">
+            <li class="help-example">
+                Specific events:<br/>
+
+                <sqx-code>event.type == 'Created' || event.type == 'Published'</sqx-code>
+            </li>
+            <li class="help-example">
+                Content has value:<br/>
+
+                <sqx-code>event.data.important.iv === true</sqx-code>
+            </li>
+            <li class="help-example">
+                Updated by user:<br/>
+                
+                <sqx-code>user.email === 'user@squidex.io'</sqx-code>
+            </li>
+        </ul>
     </div>
 </ng-container>
 

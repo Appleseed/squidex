@@ -7,7 +7,7 @@
 
 using System;
 
-namespace Squidex.Domain.Apps.Entities.Backup.Archive
+namespace Squidex.Domain.Apps.Entities.Backup.Helpers
 {
     public static class ArchiveHelper
     {
@@ -36,7 +36,7 @@ namespace Squidex.Domain.Apps.Entities.Backup.Archive
         {
             var hash = 17;
 
-            foreach (char c in value)
+            foreach (var c in value)
             {
                 unchecked
                 {

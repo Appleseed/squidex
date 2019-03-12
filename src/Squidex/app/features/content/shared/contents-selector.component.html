@@ -5,8 +5,8 @@
 
     <ng-container tabs>
         <div class="row no-gutters">
-            <div class="col col-auto offset-lg-4">
-                <button class="btn btn-link btn-secondary" (click)="reload()">
+            <div class="col-auto offset-lg-4">
+                <button type="button" class="btn btn-text-secondary" (click)="reload()">
                     <i class="icon-reset"></i> Refresh
                 </button>
             </div>
@@ -16,10 +16,10 @@
                     (queryChanged)="search($event)"
                     expandable="true">
                 </sqx-search-form>
-    
-                <ng-container *ngIf="languages.length > 1">
-                    <sqx-language-selector class="languages-buttons" (selectedLanguageChange)="selectLanguage($event)" [languages]="languages.values"></sqx-language-selector>
-                </ng-container>
+            </div>
+                
+            <div class="col pl-1" *ngIf="languages.length > 1">
+                <sqx-language-selector class="languages-buttons" (selectedLanguageChange)="selectLanguage($event)" [languages]="languages"></sqx-language-selector>
             </div>
         </div>
     </ng-container>
@@ -30,7 +30,7 @@
                 <thead>
                     <tr>
                         <th class="cell-select">
-                            <input type="checkbox" class="form-control" [ngModel]="isAllSelected" (ngModelChange)="selectAll($event)" />
+                            <input type="checkbox" class="form-check" [ngModel]="isAllSelected" (ngModelChange)="selectAll($event)" />
                         </th>
                         <th class="cell-auto" *ngFor="let field of schema.listFields">
                             <span class="field">{{field.displayName}}</span>
@@ -63,7 +63,7 @@
         </div>
 
         <div class="grid-footer">
-            <sqx-pager [pager]="contentsState.contentsPager | async" (prev)="goPrev()" (next)="goNext()"></sqx-pager>
+            <sqx-pager [pager]="contentsState.contentsPager | async" (prevPage)="goPrev()" (nextPage)="goNext()"></sqx-pager>
         </div>
     </ng-container>
 

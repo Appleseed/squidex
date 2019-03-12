@@ -5,10 +5,10 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { Component, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { Component, OnInit, ViewChild } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Observable, of, Subscription } from 'rxjs';
-import { filter, map, onErrorResumeNext, switchMap } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
+import { onErrorResumeNext, switchMap } from 'rxjs/operators';
 
 import { ContentVersionSelected } from './../messages';
 
@@ -25,6 +25,7 @@ import {
     LanguagesState,
     MessageBus,
     ModalModel,
+    ResourceOwner,
     SchemaDetailsDto,
     SchemasState,
     Version
@@ -40,17 +41,13 @@ import { DueTimeSelectorComponent } from './../../shared/due-time-selector.compo
         fadeAnimation
     ]
 })
-export class ContentPageComponent implements CanComponentDeactivate, OnDestroy, OnInit {
-    private languagesSubscription: Subscription;
-    private contentSubscription: Subscription;
-    private contentVersionSelectedSubscription: Subscription;
-    private selectedSchemaSubscription: Subscription;
-
+export class ContentPageComponent extends ResourceOwner implements CanComponentDeactivate, OnInit {
     public schema: SchemaDetailsDto;
 
     public content: ContentDto;
     public contentVersion: Version | null;
     public contentForm: EditContentForm;
+    public contentFormCompare: EditContentForm | null = null;
 
     public dropdown = new ModalModel();
 
@@ -70,51 +67,49 @@ export class ContentPageComponent implements CanComponentDeactivate, OnDestroy, 
         private readonly router: Router,
         private readonly schemasState: SchemasState
     ) {
-    }
-
-    public ngOnDestroy() {
-        this.languagesSubscription.unsubscribe();
-        this.contentSubscription.unsubscribe();
-        this.contentVersionSelectedSubscription.unsubscribe();
-        this.selectedSchemaSubscription.unsubscribe();
+        super();
     }
 
     public ngOnInit() {
-        this.languagesSubscription =
+        this.own(
             this.languagesState.languages
                 .subscribe(languages => {
                     this.languages = languages.map(x => x.language);
                     this.language = this.languages.at(0);
-                });
+                }));
 
-        this.selectedSchemaSubscription =
-            this.schemasState.selectedSchema.pipe(filter(s => !!s), map(s => s!))
+        this.own(
+            this.schemasState.selectedSchema
                 .subscribe(schema => {
-                    this.schema = schema;
+                    if (schema) {
+                        this.schema = schema!;
 
-                    this.contentForm = new EditContentForm(this.schema, this.languages);
-                });
+                        this.contentForm = new EditContentForm(this.schema, this.languages);
+                    }
+                }));
 
-        this.contentSubscription =
-            this.contentsState.selectedContent.pipe(filter(c => !!c), map(c => c!))
+        this.own(
+            this.contentsState.selectedContent
                 .subscribe(content => {
-                    this.content = content;
+                    if (content) {
+                        this.content = content;
 
-                    this.loadContent(content.dataDraft);
-                });
+                        this.loadContent(this.content.dataDraft);
+                    }
+                }));
 
-        this.contentVersionSelectedSubscription =
+        this.own(
             this.messageBus.of(ContentVersionSelected)
                 .subscribe(message => {
-                    this.loadVersion(message.version);
-                });
+                    this.loadVersion(message.version, message.compare);
+                }));
     }
 
     public canDeactivate(): Observable<boolean> {
         if (!this.contentForm.form.dirty || !this.content) {
             return of(true);
         } else {
-            return this.dialogs.confirmUnsavedChanges();
+            return this.dialogs.confirm('Unsaved changes', 'You have unsaved changes, do you want to close the current content view and discard your changes?');
         }
     }
 
@@ -141,14 +136,14 @@ export class ContentPageComponent implements CanComponentDeactivate, OnDestroy, 
             if (this.content) {
                 if (asProposal) {
                     this.contentsState.proposeUpdate(this.content, value)
-                        .subscribe(dto => {
+                        .subscribe(() => {
                             this.contentForm.submitCompleted();
                         }, error => {
                             this.contentForm.submitFailed(error);
                         });
                 } else {
                     this.contentsState.update(this.content, value)
-                        .subscribe(dto => {
+                        .subscribe(() => {
                             this.contentForm.submitCompleted();
                         }, error => {
                             this.contentForm.submitFailed(error);
@@ -156,7 +151,7 @@ export class ContentPageComponent implements CanComponentDeactivate, OnDestroy, 
                 }
             } else {
                 this.contentsState.create(value, publish)
-                    .subscribe(dto => {
+                    .subscribe(() => {
                         this.back();
                     }, error => {
                         this.contentForm.submitFailed(error);
@@ -214,26 +209,36 @@ export class ContentPageComponent implements CanComponentDeactivate, OnDestroy, 
             .subscribe();
     }
 
-    private loadVersion(version: Version) {
-        if (this.content) {
+    private loadVersion(version: Version | null, compare: boolean) {
+        if (!this.content || version === null || version.eq(this.content.version)) {
+            this.contentFormCompare = null;
+            this.contentVersion = null;
+            this.contentForm.load(this.content.dataDraft);
+        } else {
             this.contentsState.loadVersion(this.content, version)
                 .subscribe(dto => {
-                    if (this.content.version.value !== version.value) {
-                        this.contentVersion = version;
+                    if (compare) {
+                        if (this.contentFormCompare === null) {
+                            this.contentFormCompare = new EditContentForm(this.schema, this.languages);
+                            this.contentFormCompare.form.disable();
+                        }
+
+                        this.contentFormCompare.load(dto.payload);
+                        this.contentForm.load(this.content.dataDraft);
                     } else {
-                        this.contentVersion = null;
+                        if (this.contentFormCompare) {
+                            this.contentFormCompare = null;
+                        }
+
+                        this.contentForm.load(dto.payload);
                     }
 
-                    this.loadContent(dto);
+                    this.contentVersion = version;
                 });
         }
     }
 
     public showLatest() {
-        if (this.contentVersion) {
-            this.contentVersion = null;
-
-            this.loadContent(this.content.dataDraft);
-        }
+        this.loadVersion(null, false);
     }
 }

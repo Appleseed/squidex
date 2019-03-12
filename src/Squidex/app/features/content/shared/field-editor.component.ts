@@ -11,8 +11,7 @@ import { FormControl } from '@angular/forms';
 import {
     AppLanguageDto,
     EditContentForm,
-    FieldDto,
-    ImmutableArray
+    FieldDto
 } from '@app/shared';
 
 @Component({
@@ -34,5 +33,11 @@ export class FieldEditorComponent {
     public language: AppLanguageDto;
 
     @Input()
-    public languages: ImmutableArray<AppLanguageDto>;
+    public languages: AppLanguageDto[];
+
+    @Input()
+    public isCompact = false;
+
+    @Input()
+    public displaySuffix: string;
 }

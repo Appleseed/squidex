@@ -5,10 +5,8 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable:prefer-for-of
-
-import { Component, forwardRef } from '@angular/core';
-import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, forwardRef, Input, OnInit } from '@angular/core';
+import { NG_VALUE_ACCESSOR } from '@angular/forms';
 
 import {
     AppsState,
@@ -16,6 +14,9 @@ import {
     AssetsService,
     DialogModel,
     ImmutableArray,
+    LocalStoreService,
+    MessageBus,
+    StatefulControlComponent,
     Types
 } from '@app/shared';
 
@@ -23,74 +24,95 @@ export const SQX_ASSETS_EDITOR_CONTROL_VALUE_ACCESSOR: any = {
     provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => AssetsEditorComponent), multi: true
 };
 
+class AssetUpdated {
+    constructor(
+        public readonly asset: AssetDto,
+        public readonly source: any
+    ) {
+    }
+}
+
+interface State {
+    assetFiles: ImmutableArray<File>;
+
+    assets: ImmutableArray<AssetDto>;
+
+    isListView: boolean;
+}
+
 @Component({
     selector: 'sqx-assets-editor',
     styleUrls: ['./assets-editor.component.scss'],
     templateUrl: './assets-editor.component.html',
-    providers: [
-        SQX_ASSETS_EDITOR_CONTROL_VALUE_ACCESSOR
-    ]
+    providers: [SQX_ASSETS_EDITOR_CONTROL_VALUE_ACCESSOR],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class AssetsEditorComponent implements ControlValueAccessor {
-    private callChange = (v: any) => { /* NOOP */ };
-    private callTouched = () => { /* NOOP */ };
-
+export class AssetsEditorComponent extends StatefulControlComponent<State, string[]> implements OnInit {
     public assetsDialog = new DialogModel();
 
-    public newAssets = ImmutableArray.empty<File>();
-    public oldAssets = ImmutableArray.empty<AssetDto>();
+    @Input()
+    public isCompact = false;
 
-    public isDisabled = false;
-
-    constructor(
+    constructor(changeDetector: ChangeDetectorRef,
         private readonly appsState: AppsState,
-        private readonly assetsService: AssetsService
+        private readonly assetsService: AssetsService,
+        private readonly localStore: LocalStoreService,
+        private readonly messageBus: MessageBus
     ) {
+        super(changeDetector, {
+            assets: ImmutableArray.empty(),
+            assetFiles: ImmutableArray.empty(),
+            isListView: localStore.getBoolean('squidex.assets.list-view')
+        });
     }
 
     public writeValue(obj: any) {
         if (Types.isArrayOfString(obj)) {
-            if (!Types.isEquals(obj, this.oldAssets.map(x => x.id).values)) {
+            if (!Types.isEquals(obj, this.snapshot.assets.map(x => x.id).values)) {
                 const assetIds: string[] = obj;
 
                 this.assetsService.getAssets(this.appsState.appName, 0, 0, undefined, undefined, obj)
                     .subscribe(dtos => {
-                        this.oldAssets = ImmutableArray.of(assetIds.map(id => dtos.items.find(x => x.id === id)).filter(a => !!a).map(a => a!));
+                        this.setAssets(ImmutableArray.of(assetIds.map(id => dtos.items.find(x => x.id === id)!).filter(a => !!a)));
 
-                        if (this.oldAssets.length !== assetIds.length) {
+                        if (this.snapshot.assets.length !== assetIds.length) {
                             this.updateValue();
                         }
                     }, () => {
-                        this.oldAssets = ImmutableArray.empty();
+                        this.setAssets(ImmutableArray.empty());
                     });
             }
         } else {
-            this.oldAssets = ImmutableArray.empty();
+            this.setAssets(ImmutableArray.empty());
         }
     }
 
-    public setDisabledState(isDisabled: boolean): void {
-        this.isDisabled = isDisabled;
+    public notifyOthers(asset: AssetDto) {
+        this.messageBus.emit(new AssetUpdated(asset, this));
     }
 
-    public registerOnChange(fn: any) {
-        this.callChange = fn;
+    public ngOnInit() {
+        this.own(
+            this.messageBus.of(AssetUpdated)
+                .subscribe(event => {
+                    if (event.source !== this) {
+                        this.setAssets(this.snapshot.assets.replaceBy('id', event.asset));
+                    }
+                }));
     }
 
-    public registerOnTouched(fn: any) {
-        this.callTouched = fn;
+    public setAssets(assets: ImmutableArray<AssetDto>) {
+        this.next(s => ({ ...s, assets }));
     }
 
-    public addFiles(files: FileList) {
-        for (let i = 0; i < files.length; i++) {
-            this.newAssets = this.newAssets.pushFront(files[i]);
+    public addFiles(files: File[]) {
+        for (let file of files) {
+            this.next(s => ({ ...s, assetFiles: s.assetFiles.pushFront(file) }));
         }
     }
 
-    public onAssetsSelected(assets: AssetDto[]) {
-        for (let asset of assets) {
-            this.oldAssets = this.oldAssets.push(asset);
-        }
+    public selectAssets(assets: AssetDto[]) {
+        this.setAssets(this.snapshot.assets.push(...assets));
 
         if (assets.length > 0) {
             this.updateValue();
@@ -99,27 +121,46 @@ export class AssetsEditorComponent implements ControlValueAccessor {
         this.assetsDialog.hide();
     }
 
-    public onAssetRemoving(asset: AssetDto) {
-        if (asset) {
-            this.oldAssets = this.oldAssets.remove(asset);
+    public addAsset(file: File, asset: AssetDto) {
+        if (asset && file) {
+            this.next(s => ({
+                ...s,
+                assetFiles: s.assetFiles.remove(file),
+                assets: s.assets.pushFront(asset)
+            }));
 
             this.updateValue();
         }
     }
 
-    public onAssetLoaded(file: File, asset: AssetDto) {
-        this.newAssets = this.newAssets.remove(file);
-        this.oldAssets = this.oldAssets.pushFront(asset);
+    public sortAssets(assets: AssetDto[]) {
+        if (assets) {
+            this.setAssets(ImmutableArray.of(assets));
 
-        this.updateValue();
+            this.updateValue();
+        }
     }
 
-    public onAssetFailed(file: File) {
-        this.newAssets = this.newAssets.remove(file);
+    public removeLoadedAsset(asset: AssetDto) {
+        if (asset) {
+            this.setAssets(this.snapshot.assets.remove(asset));
+
+            this.updateValue();
+        }
+    }
+
+    public removeLoadingAsset(file: File) {
+        this.next(s => ({ ...s, assetFiles: s.assetFiles.remove(file) }));
+    }
+
+    public changeView(isListView: boolean) {
+        this.next(s => ({ ...s, isListView }));
+
+        this.localStore.setBoolean('squidex.assets.list-view', isListView);
     }
 
     private updateValue() {
-        let ids: string[] | null = this.oldAssets.values.map(x => x.id);
+        let ids: string[] | null = this.snapshot.assets.values.map(x => x.id);
 
         if (ids.length === 0) {
             ids = null;
@@ -127,5 +168,9 @@ export class AssetsEditorComponent implements ControlValueAccessor {
 
         this.callTouched();
         this.callChange(ids);
+    }
+
+    public trackByAsset(index: number, asset: AssetDto) {
+        return asset.id;
     }
 }

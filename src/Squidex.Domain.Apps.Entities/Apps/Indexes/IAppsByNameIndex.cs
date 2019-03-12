@@ -14,6 +14,8 @@ namespace Squidex.Domain.Apps.Entities.Apps.Indexes
 {
     public interface IAppsByNameIndex : IGrainWithStringKey
     {
+        Task<long> CountAsync();
+
         Task<bool> ReserveAppAsync(Guid appId, string name);
 
         Task AddAppAsync(Guid appId, string name);
@@ -24,8 +26,10 @@ namespace Squidex.Domain.Apps.Entities.Apps.Indexes
 
         Task RemoveReservationAsync(Guid appId, string name);
 
-        Task<Guid> GetAppIdAsync(string name);
-
         Task<List<Guid>> GetAppIdsAsync();
+
+        Task<List<Guid>> GetAppIdsAsync(string[] names);
+
+        Task<Guid> GetAppIdAsync(string name);
     }
 }

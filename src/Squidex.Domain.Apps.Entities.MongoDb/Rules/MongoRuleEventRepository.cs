@@ -32,17 +32,18 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Rules
             return "RuleEvents";
         }
 
-        protected override async Task SetupCollectionAsync(IMongoCollection<MongoRuleEventEntity> collection)
+        protected override async Task SetupCollectionAsync(IMongoCollection<MongoRuleEventEntity> collection, CancellationToken ct = default)
         {
-            await collection.Indexes.CreateOneAsync(
-                new CreateIndexModel<MongoRuleEventEntity>(Index.Ascending(x => x.NextAttempt)));
-            await collection.Indexes.CreateOneAsync(
-                new CreateIndexModel<MongoRuleEventEntity>(Index.Ascending(x => x.AppId).Descending(x => x.Created)));
-            await collection.Indexes.CreateOneAsync(
-                new CreateIndexModel<MongoRuleEventEntity>(Index.Ascending(x => x.Expires), new CreateIndexOptions { ExpireAfter = TimeSpan.Zero }));
+            await collection.Indexes.CreateManyAsync(
+                new[]
+                {
+                    new CreateIndexModel<MongoRuleEventEntity>(Index.Ascending(x => x.NextAttempt)),
+                    new CreateIndexModel<MongoRuleEventEntity>(Index.Ascending(x => x.AppId).Descending(x => x.Created)),
+                    new CreateIndexModel<MongoRuleEventEntity>(Index.Ascending(x => x.Expires), new CreateIndexOptions { ExpireAfter = TimeSpan.Zero })
+                }, ct);
         }
 
-        public Task QueryPendingAsync(Instant now, Func<IRuleEventEntity, Task> callback, CancellationToken ct = default(CancellationToken))
+        public Task QueryPendingAsync(Instant now, Func<IRuleEventEntity, Task> callback, CancellationToken ct = default)
         {
             return Collection.Find(x => x.NextAttempt < now).ForEachAsync(callback, ct);
         }
@@ -65,11 +66,6 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Rules
             return ruleEvent;
         }
 
-        public Task RemoveAsync(Guid appId)
-        {
-            return Collection.DeleteManyAsync(x => x.AppId == appId);
-        }
-
         public async Task<int> CountByAppAsync(Guid appId)
         {
             return (int)await Collection.CountDocumentsAsync(x => x.AppId == appId);
@@ -85,6 +81,14 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Rules
             var entity = SimpleMapper.Map(job, new MongoRuleEventEntity { Id = job.JobId, Job = job, Created = nextAttempt, NextAttempt = nextAttempt });
 
             return Collection.InsertOneIfNotExistsAsync(entity);
+        }
+
+        public Task CancelAsync(Guid id)
+        {
+            return Collection.UpdateOneAsync(x => x.Id == id,
+                Update
+                    .Set(x => x.NextAttempt, null)
+                    .Set(x => x.JobResult, RuleJobResult.Cancelled));
         }
 
         public Task MarkSentAsync(Guid jobId, string dump, RuleResult result, RuleJobResult jobResult, TimeSpan elapsed, Instant? nextAttempt)

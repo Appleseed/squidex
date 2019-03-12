@@ -9,10 +9,11 @@ using System.Collections.Generic;
 using System.Linq;
 using GraphQL.Resolvers;
 using GraphQL.Types;
-using Newtonsoft.Json.Linq;
 using Squidex.Domain.Apps.Core.Contents;
+using Squidex.Domain.Apps.Core.Schemas;
 using Squidex.Domain.Apps.Entities.Schemas;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.Json.Objects;
 
 namespace Squidex.Domain.Apps.Entities.Contents.GraphQL.Types
 {
@@ -43,21 +44,23 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL.Types
 
                     foreach (var partitionItem in partition)
                     {
+                        var key = partitionItem.Key;
+
                         var resolver = new FuncFieldResolver<object>(c =>
                         {
-                            if (((ContentFieldData)c.Source).TryGetValue(c.FieldName, out var value))
+                            if (((ContentFieldData)c.Source).TryGetValue(key, out var value))
                             {
                                 return fieldInfo.Resolver(value, c);
                             }
                             else
                             {
-                                return fieldInfo;
+                                return null;
                             }
                         });
 
                         fieldGraphType.AddField(new FieldType
                         {
-                            Name = partitionItem.Key,
+                            Name = key.EscapePartition(),
                             Resolver = resolver,
                             ResolvedType = fieldInfo.ResolveType,
                             Description = field.RawProperties.Hints
@@ -66,7 +69,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL.Types
 
                     fieldGraphType.Description = $"The structure of the {fieldName} field of the {schemaName} content type.";
 
-                    var fieldResolver = new FuncFieldResolver<NamedContentData, IReadOnlyDictionary<string, JToken>>(c =>
+                    var fieldResolver = new FuncFieldResolver<NamedContentData, IReadOnlyDictionary<string, IJsonValue>>(c =>
                     {
                         return c.Source.GetOrDefault(field.Name);
                     });

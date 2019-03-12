@@ -13,7 +13,6 @@ import { map } from 'rxjs/operators';
 import {
     ApiUrlConfig,
     DateTime,
-    HTTP,
     pretifyError
 } from '@app/framework';
 
@@ -59,14 +58,22 @@ export class UsagesService {
     ) {
     }
 
+    public getLog(app: string): Observable<string> {
+        const url = this.apiUrl.buildUrl(`api/apps/${app}/usages/log`);
+
+        return this.http.get<any>(url).pipe(
+            map(response => {
+                return response.downloadUrl;
+            }),
+            pretifyError('Failed to load monthly api calls. Please reload.'));
+    }
+
     public getMonthCalls(app: string): Observable<CurrentCallsDto> {
         const url = this.apiUrl.buildUrl(`api/apps/${app}/usages/calls/month`);
 
-        return HTTP.getVersioned<any>(this.http, url).pipe(
+        return this.http.get<any>(url).pipe(
                 map(response => {
-                    const body = response.payload.body;
-
-                    return new CurrentCallsDto(body.count, body.maxAllowed);
+                    return new CurrentCallsDto(response.count, response.maxAllowed);
                 }),
                 pretifyError('Failed to load monthly api calls. Please reload.'));
     }
@@ -74,30 +81,29 @@ export class UsagesService {
     public getTodayStorage(app: string): Observable<CurrentStorageDto> {
         const url = this.apiUrl.buildUrl(`api/apps/${app}/usages/storage/today`);
 
-        return HTTP.getVersioned<any>(this.http, url).pipe(
+        return this.http.get<any>(url).pipe(
                 map(response => {
-                    const body = response.payload.body;
-
-                    return new CurrentStorageDto(body.size, body.maxAllowed);
+                    return new CurrentStorageDto(response.size, response.maxAllowed);
                 }),
                 pretifyError('Failed to load todays storage size. Please reload.'));
     }
 
-    public getCallsUsages(app: string, fromDate: DateTime, toDate: DateTime): Observable<CallsUsageDto[]> {
+    public getCallsUsages(app: string, fromDate: DateTime, toDate: DateTime): Observable<{ [category: string]: CallsUsageDto[] }> {
         const url = this.apiUrl.buildUrl(`api/apps/${app}/usages/calls/${fromDate.toUTCStringFormat('YYYY-MM-DD')}/${toDate.toUTCStringFormat('YYYY-MM-DD')}`);
 
-        return HTTP.getVersioned<any>(this.http, url).pipe(
+        return this.http.get<any>(url).pipe(
                 map(response => {
-                    const body = response.payload.body;
+                    const result: { [category: string]: CallsUsageDto[] } = {};
 
-                    const items: any[] = body;
-
-                    return items.map(item => {
-                        return new CallsUsageDto(
-                            DateTime.parseISO_UTC(item.date),
-                            item.count,
-                            item.averageMs);
-                    });
+                    for (let category of Object.keys(response)) {
+                        result[category] = response[category].map((item: any) => {
+                            return new CallsUsageDto(
+                                DateTime.parseISO_UTC(item.date),
+                                item.count,
+                                item.averageMs);
+                        });
+                    }
+                    return result;
                 }),
                 pretifyError('Failed to load calls usage. Please reload.'));
     }
@@ -105,13 +111,9 @@ export class UsagesService {
     public getStorageUsages(app: string, fromDate: DateTime, toDate: DateTime): Observable<StorageUsageDto[]> {
         const url = this.apiUrl.buildUrl(`api/apps/${app}/usages/storage/${fromDate.toUTCStringFormat('YYYY-MM-DD')}/${toDate.toUTCStringFormat('YYYY-MM-DD')}`);
 
-        return HTTP.getVersioned<any>(this.http, url).pipe(
+        return this.http.get<any[]>(url).pipe(
                 map(response => {
-                    const body = response.payload.body;
-
-                    const items: any[] = body;
-
-                    return items.map(item => {
+                    return response.map(item => {
                         return new StorageUsageDto(
                             DateTime.parseISO_UTC(item.date),
                             item.count,

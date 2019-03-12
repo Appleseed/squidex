@@ -15,7 +15,9 @@ namespace Squidex.Infrastructure
 {
     public static class StringExtensions
     {
+        private const char NullChar = (char)0;
         private static readonly Regex SlugRegex = new Regex("^[a-z0-9]+(\\-[a-z0-9]+)*$", RegexOptions.Compiled);
+        private static readonly Regex EmailRegex = new Regex("^[a-zA-Z0-9.!#$%&’*+\\/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:.[a-zA-Z0-9-]+)*$", RegexOptions.Compiled);
         private static readonly Regex PropertyNameRegex = new Regex("^[a-zA-Z0-9]+(\\-[a-zA-Z0-9]+)*$", RegexOptions.Compiled);
         private static readonly Dictionary<char, string> LowerCaseDiacritics;
         private static readonly Dictionary<char, string> Diacritics = new Dictionary<char, string>
@@ -313,6 +315,11 @@ namespace Squidex.Infrastructure
             return value != null && SlugRegex.IsMatch(value);
         }
 
+        public static bool IsEmail(this string value)
+        {
+            return value != null && EmailRegex.IsMatch(value);
+        }
+
         public static bool IsPropertyName(this string value)
         {
             return value != null && PropertyNameRegex.IsMatch(value);
@@ -325,19 +332,55 @@ namespace Squidex.Infrastructure
 
         public static string ToPascalCase(this string value)
         {
-            var sb = new StringBuilder();
-
-            foreach (var part in value.Split(new char[] { '-', '_', ' ' }, StringSplitOptions.RemoveEmptyEntries))
+            if (string.IsNullOrWhiteSpace(value))
             {
-                if (part.Length < 2)
+                return string.Empty;
+            }
+
+            var sb = new StringBuilder(value.Length);
+
+            var last = NullChar;
+            var length = 0;
+
+            for (var i = 0; i < value.Length; i++)
+            {
+                var c = value[i];
+
+                if (c == '-' || c == '_' || c == ' ')
                 {
-                    sb.Append(part.ToUpper());
+                    if (last != NullChar)
+                    {
+                        sb.Append(char.ToUpperInvariant(last));
+                    }
+
+                    last = NullChar;
+                    length = 0;
                 }
                 else
                 {
-                    sb.Append(char.ToUpper(part[0]));
-                    sb.Append(part.Substring(1));
+                    if (length > 1)
+                    {
+                        sb.Append(c);
+                    }
+                    else if (length == 0)
+                    {
+                        last = c;
+                    }
+                    else
+                    {
+                        sb.Append(char.ToUpperInvariant(last));
+                        sb.Append(c);
+
+                        last = NullChar;
+                    }
+
+                    length++;
                 }
+            }
+
+            if (last != NullChar)
+            {
+                sb.Append(char.ToUpperInvariant(last));
             }
 
             return sb.ToString();
@@ -345,16 +388,41 @@ namespace Squidex.Infrastructure
 
         public static string ToKebabCase(this string value)
         {
-            var sb = new StringBuilder();
-
-            foreach (var part in value.Split(new char[] { '-', '_', ' ' }, StringSplitOptions.RemoveEmptyEntries))
+            if (value.Length == 0)
             {
-                if (sb.Length > 0)
-                {
-                    sb.Append("-");
-                }
+                return string.Empty;
+            }
 
-                sb.Append(part.ToLower());
+            var sb = new StringBuilder(value.Length);
+
+            var length = 0;
+
+            for (var i = 0; i < value.Length; i++)
+            {
+                var c = value[i];
+
+                if (c == '-' || c == '_' || c == ' ')
+                {
+                    length = 0;
+                }
+                else
+                {
+                    if (length > 0)
+                    {
+                        sb.Append(char.ToLowerInvariant(c));
+                    }
+                    else
+                    {
+                        if (sb.Length > 0)
+                        {
+                            sb.Append('-');
+                        }
+
+                        sb.Append(char.ToLowerInvariant(c));
+                    }
+
+                    length++;
+                }
             }
 
             return sb.ToString();
@@ -362,16 +430,80 @@ namespace Squidex.Infrastructure
 
         public static string ToCamelCase(this string value)
         {
-            value = value.ToPascalCase();
+            if (value.Length == 0)
+            {
+                return string.Empty;
+            }
 
-            if (value.Length < 2)
+            var sb = new StringBuilder(value.Length);
+
+            var last = NullChar;
+            var length = 0;
+
+            for (var i = 0; i < value.Length; i++)
             {
-                return value.ToLower();
+                var c = value[i];
+
+                if (c == '-' || c == '_' || c == ' ')
+                {
+                    if (last != NullChar)
+                    {
+                        if (sb.Length > 0)
+                        {
+                            sb.Append(char.ToUpperInvariant(last));
+                        }
+                        else
+                        {
+                            sb.Append(char.ToLowerInvariant(last));
+                        }
+                    }
+
+                    last = NullChar;
+                    length = 0;
+                }
+                else
+                {
+                    if (length > 1)
+                    {
+                        sb.Append(c);
+                    }
+                    else if (length == 0)
+                    {
+                        last = c;
+                    }
+                    else
+                    {
+                        if (sb.Length > 0)
+                        {
+                            sb.Append(char.ToUpperInvariant(last));
+                        }
+                        else
+                        {
+                            sb.Append(char.ToLowerInvariant(last));
+                        }
+
+                        sb.Append(c);
+
+                        last = NullChar;
+                    }
+
+                    length++;
+                }
             }
-            else
+
+            if (last != NullChar)
             {
-                return char.ToLower(value[0]) + value.Substring(1);
+                if (sb.Length > 0)
+                {
+                    sb.Append(char.ToUpperInvariant(last));
+                }
+                else
+                {
+                    sb.Append(char.ToLowerInvariant(last));
+                }
             }
+
+            return sb.ToString();
         }
 
         public static string Slugify(this string value, ISet<char> preserveHash = null, bool singleCharDiactric = false, char separator = '-')

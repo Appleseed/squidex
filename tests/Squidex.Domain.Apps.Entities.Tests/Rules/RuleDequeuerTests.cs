@@ -8,11 +8,11 @@
 using System;
 using System.Threading.Tasks;
 using FakeItEasy;
-using Newtonsoft.Json.Linq;
 using NodaTime;
 using Squidex.Domain.Apps.Core.HandleRules;
 using Squidex.Domain.Apps.Core.Rules;
 using Squidex.Domain.Apps.Entities.Rules.Repositories;
+using Squidex.Infrastructure;
 using Squidex.Infrastructure.Log;
 using Xunit;
 
@@ -24,21 +24,16 @@ namespace Squidex.Domain.Apps.Entities.Rules
     {
         private readonly IClock clock = A.Fake<IClock>();
         private readonly ISemanticLog log = A.Dummy<ISemanticLog>();
-        private readonly IAppProvider appProvider = A.Fake<IAppProvider>();
         private readonly IRuleEventRepository ruleEventRepository = A.Fake<IRuleEventRepository>();
-        private readonly Instant now = SystemClock.Instance.GetCurrentInstant();
         private readonly RuleService ruleService = A.Fake<RuleService>();
         private readonly RuleDequeuerGrain sut;
 
         public RuleDequeuerTests()
         {
-            A.CallTo(() => clock.GetCurrentInstant()).Returns(now);
+            A.CallTo(() => clock.GetCurrentInstant())
+                .Returns(SystemClock.Instance.GetCurrentInstant().WithoutMs());
 
-            sut = new RuleDequeuerGrain(
-                ruleService,
-                ruleEventRepository,
-                log,
-                clock);
+            sut = new RuleDequeuerGrain(ruleService, ruleEventRepository, log, clock);
         }
 
         [Theory]
@@ -50,7 +45,7 @@ namespace Squidex.Domain.Apps.Entities.Rules
         [InlineData(4, 0,   RuleResult.Failed,  RuleJobResult.Failed)]
         public async Task Should_set_next_attempt_based_on_num_calls(int calls, int minutes, RuleResult result, RuleJobResult jobResult)
         {
-            var actionData = new JObject();
+            var actionData = "{}";
             var actionName = "MyAction";
 
             var @event = CreateEvent(calls, actionName, actionData);
@@ -65,7 +60,7 @@ namespace Squidex.Domain.Apps.Entities.Rules
 
             if (minutes > 0)
             {
-                nextCall = now.Plus(Duration.FromMinutes(minutes));
+                nextCall = clock.GetCurrentInstant().Plus(Duration.FromMinutes(minutes));
             }
 
             await sut.HandleAsync(@event);
@@ -74,7 +69,7 @@ namespace Squidex.Domain.Apps.Entities.Rules
                 .MustHaveHappened();
         }
 
-        private IRuleEventEntity CreateEvent(int numCalls, string actionName, JObject actionData)
+        private IRuleEventEntity CreateEvent(int numCalls, string actionName, string actionData)
         {
             var @event = A.Fake<IRuleEventEntity>();
 
@@ -83,12 +78,12 @@ namespace Squidex.Domain.Apps.Entities.Rules
                 JobId = Guid.NewGuid(),
                 ActionData = actionData,
                 ActionName = actionName,
-                Created = now
+                Created = clock.GetCurrentInstant()
             };
 
             A.CallTo(() => @event.Id).Returns(Guid.NewGuid());
             A.CallTo(() => @event.Job).Returns(job);
-            A.CallTo(() => @event.Created).Returns(now);
+            A.CallTo(() => @event.Created).Returns(clock.GetCurrentInstant());
             A.CallTo(() => @event.NumCalls).Returns(numCalls);
 
             return @event;

@@ -9,7 +9,6 @@ using System;
 using System.Threading.Tasks;
 using Squidex.Domain.Apps.Entities.Apps.Commands;
 using Squidex.Domain.Apps.Entities.Apps.Templates.Builders;
-using Squidex.Domain.Apps.Entities.Schemas.Commands;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Commands;
 
@@ -18,18 +17,6 @@ namespace Squidex.Domain.Apps.Entities.Apps.Templates
     public sealed class CreateIdentityCommandMiddleware : ICommandMiddleware
     {
         private const string TemplateName = "Identity";
-        private const string NormalizeScript = @"
-            var data = ctx.data;
-            
-            if (data.userName && data.userName.iv) {
-                data.normalizedUserName = { iv: data.userName.iv.toUpperCase() };
-            }
-            
-            if (data.email && data.email.iv) {
-                data.normalizedEmail = { iv: data.email.iv.toUpperCase() };
-            }
-
-            replace(data);";
 
         public async Task HandleAsync(CommandContext context, Func<Task> next)
         {
@@ -53,8 +40,7 @@ namespace Squidex.Domain.Apps.Entities.Apps.Templates
                     CreateClientsSchemaAsync(publish),
                     CreateIdentityResourcesSchemaAsync(publish),
                     CreateSettingsSchemaAsync(publish),
-                    CreateUsersSchemaAsync(publish),
-                    CreateClientAsync(publish, appId.Id));
+                    CreateUsersSchemaAsync(publish));
             }
 
             await next();
@@ -65,12 +51,7 @@ namespace Squidex.Domain.Apps.Entities.Apps.Templates
             return string.Equals(createApp.Template, TemplateName, StringComparison.OrdinalIgnoreCase);
         }
 
-        private static async Task CreateClientAsync(Func<ICommand, Task> publish, Guid appId)
-        {
-            await publish(new AttachClient { Id = "default", AppId = appId });
-        }
-
-        private async Task<NamedId<Guid>> CreateAuthenticationSchemeSchemaAsync(Func<ICommand, Task> publish)
+        private static async Task<NamedId<Guid>> CreateAuthenticationSchemeSchemaAsync(Func<ICommand, Task> publish)
         {
             var schema =
                 SchemaBuilder.Create("Authentication Schemes")
@@ -95,7 +76,7 @@ namespace Squidex.Domain.Apps.Entities.Apps.Templates
             return NamedId.Of(schema.SchemaId, schema.Name);
         }
 
-        private Task CreateClientsSchemaAsync(Func<ICommand, Task> publish)
+        private static Task CreateClientsSchemaAsync(Func<ICommand, Task> publish)
         {
             var schema =
                 SchemaBuilder.Create("Clients")
@@ -134,7 +115,7 @@ namespace Squidex.Domain.Apps.Entities.Apps.Templates
             return publish(schema);
         }
 
-        private Task CreateSettingsSchemaAsync(Func<ICommand, Task> publish)
+        private static Task CreateSettingsSchemaAsync(Func<ICommand, Task> publish)
         {
             var schema =
                 SchemaBuilder.Create("Settings").Singleton()
@@ -191,7 +172,7 @@ namespace Squidex.Domain.Apps.Entities.Apps.Templates
             return publish(schema);
         }
 
-        private async Task CreateUsersSchemaAsync(Func<ICommand, Task> publish)
+        private static async Task CreateUsersSchemaAsync(Func<ICommand, Task> publish)
         {
             var schema =
                 SchemaBuilder.Create("Users")
@@ -247,21 +228,13 @@ namespace Squidex.Domain.Apps.Entities.Apps.Templates
                     .AddString("Security Stamp", f => f
                         .Disabled()
                         .Hints("Internal security stamp"))
+                    .WithScripts(DefaultScripts.GenerateUsername)
                     .Build();
 
             await publish(schema);
-
-            var schemaId = NamedId.Of(schema.SchemaId, schema.Name);
-
-            await publish(new ConfigureScripts
-            {
-                SchemaId = schemaId.Id,
-                ScriptCreate = NormalizeScript,
-                ScriptUpdate = NormalizeScript
-            });
         }
 
-        private Task CreateApiResourcesSchemaAsync(Func<ICommand, Task> publish)
+        private static Task CreateApiResourcesSchemaAsync(Func<ICommand, Task> publish)
         {
             var schema =
                 SchemaBuilder.Create("API Resources")
@@ -282,7 +255,7 @@ namespace Squidex.Domain.Apps.Entities.Apps.Templates
             return publish(schema);
         }
 
-        private Task CreateIdentityResourcesSchemaAsync(Func<ICommand, Task> publish)
+        private static Task CreateIdentityResourcesSchemaAsync(Func<ICommand, Task> publish)
         {
             var schema =
                 SchemaBuilder.Create("Identity Resources")

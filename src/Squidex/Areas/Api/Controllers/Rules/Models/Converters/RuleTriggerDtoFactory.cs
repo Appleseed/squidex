@@ -26,16 +26,26 @@ namespace Squidex.Areas.Api.Controllers.Rules.Models.Converters
             return properties.Accept(Instance);
         }
 
-        public RuleTriggerDto Visit(AssetChangedTrigger trigger)
+        public RuleTriggerDto Visit(AssetChangedTriggerV2 trigger)
         {
-            return SimpleMapper.Map(trigger, new AssetChangedTriggerDto());
+            return SimpleMapper.Map(trigger, new AssetChangedRuleTriggerDto());
         }
 
-        public RuleTriggerDto Visit(ContentChangedTrigger trigger)
+        public RuleTriggerDto Visit(SchemaChangedTrigger trigger)
         {
-            var schemas = trigger.Schemas.Select(x => SimpleMapper.Map(x, new ContentChangedTriggerSchemaDto())).ToList();
+            return SimpleMapper.Map(trigger, new AssetChangedRuleTriggerDto());
+        }
 
-            return new ContentChangedTriggerDto { Schemas = schemas, HandleAll = trigger.HandleAll };
+        public RuleTriggerDto Visit(UsageTrigger trigger)
+        {
+            return SimpleMapper.Map(trigger, new UsageRuleTriggerDto());
+        }
+
+        public RuleTriggerDto Visit(ContentChangedTriggerV2 trigger)
+        {
+            var schemas = trigger.Schemas.Select(x => SimpleMapper.Map(x, new ContentChangedRuleTriggerSchemaDto())).ToArray();
+
+            return new ContentChangedRuleTriggerDto { Schemas = schemas, HandleAll = trigger.HandleAll };
         }
     }
 }

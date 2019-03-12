@@ -5,14 +5,15 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace Squidex.Infrastructure
 {
+    [Serializable]
     public sealed class ValidationError
     {
-        private static readonly string[] FallbackProperties = new string[0];
         private readonly string message;
         private readonly string[] propertyNames;
 
@@ -32,7 +33,7 @@ namespace Squidex.Infrastructure
 
             this.message = message;
 
-            this.propertyNames = propertyNames ?? FallbackProperties;
+            this.propertyNames = propertyNames ?? Array.Empty<string>();
         }
 
         public ValidationError WithPrefix(string prefix)

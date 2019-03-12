@@ -18,16 +18,15 @@ using Microsoft.AspNetCore.Routing;
 using Squidex.Domain.Apps.Entities.Apps;
 using Squidex.Domain.Apps.Entities.Apps.Services;
 using Squidex.Infrastructure.UsageTracking;
-using Squidex.Pipeline;
 using Xunit;
 
-namespace Squidex.Tests.Pipeline
+namespace Squidex.Pipeline
 {
     public class ApiCostsFilterTests
     {
         private readonly IActionContextAccessor actionContextAccessor = A.Fake<IActionContextAccessor>();
         private readonly IAppEntity appEntity = A.Fake<IAppEntity>();
-        private readonly IAppPlansProvider appPlanProvider = A.Fake<IAppPlansProvider>();
+        private readonly IAppPlansProvider appPlansProvider = A.Fake<IAppPlansProvider>();
         private readonly IUsageTracker usageTracker = A.Fake<IUsageTracker>();
         private readonly IAppLimitsPlan appPlan = A.Fake<IAppLimitsPlan>();
         private readonly ActionExecutingContext actionContext;
@@ -49,10 +48,10 @@ namespace Squidex.Tests.Pipeline
             A.CallTo(() => actionContextAccessor.ActionContext)
                 .Returns(actionContext);
 
-            A.CallTo(() => appPlanProvider.GetPlan(null))
+            A.CallTo(() => appPlansProvider.GetPlan(null))
                 .Returns(appPlan);
 
-            A.CallTo(() => appPlanProvider.GetPlanForApp(appEntity))
+            A.CallTo(() => appPlansProvider.GetPlanForApp(appEntity))
                 .Returns(appPlan);
 
             A.CallTo(() => appPlan.MaxApiCalls)
@@ -68,7 +67,7 @@ namespace Squidex.Tests.Pipeline
                 return Task.FromResult<ActionExecutedContext>(null);
             };
 
-            sut = new ApiCostsFilter(appPlanProvider, usageTracker);
+            sut = new ApiCostsFilter(appPlansProvider, usageTracker);
         }
 
         [Fact]
@@ -86,7 +85,7 @@ namespace Squidex.Tests.Pipeline
             Assert.Equal(429, (actionContext.Result as StatusCodeResult).StatusCode);
             Assert.False(isNextCalled);
 
-            A.CallTo(() => usageTracker.TrackAsync(A<string>.Ignored, A<double>.Ignored, A<double>.Ignored))
+            A.CallTo(() => usageTracker.TrackAsync(A<string>.Ignored, A<string>.Ignored, A<double>.Ignored, A<double>.Ignored))
                 .MustNotHaveHappened();
         }
 
@@ -104,7 +103,7 @@ namespace Squidex.Tests.Pipeline
 
             Assert.True(isNextCalled);
 
-            A.CallTo(() => usageTracker.TrackAsync(A<string>.Ignored, 13, A<double>.Ignored))
+            A.CallTo(() => usageTracker.TrackAsync(A<string>.Ignored, A<string>.Ignored, 13, A<double>.Ignored))
                 .MustHaveHappened();
         }
 
@@ -122,7 +121,7 @@ namespace Squidex.Tests.Pipeline
 
             Assert.True(isNextCalled);
 
-            A.CallTo(() => usageTracker.TrackAsync(A<string>.Ignored, 13, A<double>.Ignored))
+            A.CallTo(() => usageTracker.TrackAsync(A<string>.Ignored, A<string>.Ignored, 13, A<double>.Ignored))
                 .MustHaveHappened();
         }
 
@@ -140,7 +139,7 @@ namespace Squidex.Tests.Pipeline
 
             Assert.True(isNextCalled);
 
-            A.CallTo(() => usageTracker.TrackAsync(A<string>.Ignored, A<double>.Ignored, A<double>.Ignored))
+            A.CallTo(() => usageTracker.TrackAsync(A<string>.Ignored, A<string>.Ignored, A<double>.Ignored, A<double>.Ignored))
                 .MustNotHaveHappened();
         }
 
@@ -156,13 +155,13 @@ namespace Squidex.Tests.Pipeline
 
             Assert.True(isNextCalled);
 
-            A.CallTo(() => usageTracker.TrackAsync(A<string>.Ignored, A<double>.Ignored, A<double>.Ignored))
+            A.CallTo(() => usageTracker.TrackAsync(A<string>.Ignored, A<string>.Ignored, A<double>.Ignored, A<double>.Ignored))
                 .MustNotHaveHappened();
         }
 
         private void SetupApp()
         {
-            httpContext.Features.Set<IAppFeature>(new AppApiFilter.AppFeature(appEntity));
+            httpContext.Features.Set<IAppFeature>(new AppResolver.AppFeature(appEntity));
         }
     }
 }

@@ -8,8 +8,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.OData.UriParser;
 using MongoDB.Driver;
 using Squidex.Domain.Apps.Core.Contents;
 using Squidex.Domain.Apps.Entities.Apps;
@@ -17,7 +17,9 @@ using Squidex.Domain.Apps.Entities.Contents;
 using Squidex.Domain.Apps.Entities.MongoDb.Contents.Visitors;
 using Squidex.Domain.Apps.Entities.Schemas;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.Json;
 using Squidex.Infrastructure.MongoDb;
+using Squidex.Infrastructure.Queries;
 
 namespace Squidex.Domain.Apps.Entities.MongoDb.Contents
 {
@@ -25,16 +27,20 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Contents
     {
         private readonly string collectionName;
 
-        public MongoContentCollection(IMongoDatabase database, string collectionName)
+        protected IJsonSerializer Serializer { get; }
+
+        public MongoContentCollection(IMongoDatabase database, IJsonSerializer serializer, string collectionName)
             : base(database)
         {
             this.collectionName = collectionName;
+
+            Serializer = serializer;
         }
 
-        protected override async Task SetupCollectionAsync(IMongoCollection<MongoContentEntity> collection)
+        protected override async Task SetupCollectionAsync(IMongoCollection<MongoContentEntity> collection, CancellationToken ct = default)
         {
             await collection.Indexes.CreateOneAsync(
-                new CreateIndexModel<MongoContentEntity>(Index.Ascending(x => x.ReferencedIds)));
+                new CreateIndexModel<MongoContentEntity>(Index.Ascending(x => x.ReferencedIds)), cancellationToken: ct);
         }
 
         protected override string CollectionName()
@@ -42,20 +48,20 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Contents
             return collectionName;
         }
 
-        public async Task<IResultList<IContentEntity>> QueryAsync(IAppEntity app, ISchemaEntity schema, ODataUriParser odataQuery, Status[] status = null, bool useDraft = false)
+        public async Task<IResultList<IContentEntity>> QueryAsync(IAppEntity app, ISchemaEntity schema, Query query, Status[] status = null, bool useDraft = false)
         {
             try
             {
-                var propertyCalculator = FindExtensions.CreatePropertyCalculator(schema.SchemaDef, useDraft);
+                query = query.AdjustToModel(schema.SchemaDef, useDraft);
 
-                var filter = FindExtensions.BuildQuery(odataQuery, schema.Id, status, propertyCalculator);
+                var filter = query.ToFilter(schema.Id, status);
 
                 var contentCount = Collection.Find(filter).CountDocumentsAsync();
                 var contentItems =
                     Collection.Find(filter)
-                        .ContentTake(odataQuery)
-                        .ContentSkip(odataQuery)
-                        .ContentSort(odataQuery, propertyCalculator)
+                        .ContentTake(query)
+                        .ContentSkip(query)
+                        .ContentSort(query)
                         .Not(x => x.DataText)
                         .ToListAsync();
 
@@ -63,18 +69,10 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Contents
 
                 foreach (var entity in contentItems.Result)
                 {
-                    entity.ParseData(schema.SchemaDef);
+                    entity.ParseData(schema.SchemaDef, Serializer);
                 }
 
                 return ResultList.Create<IContentEntity>(contentCount.Result, contentItems.Result);
-            }
-            catch (NotSupportedException)
-            {
-                throw new ValidationException("This odata operation is not supported.");
-            }
-            catch (NotImplementedException)
-            {
-                throw new ValidationException("This odata operation is not supported.");
             }
             catch (MongoQueryException ex)
             {
@@ -103,7 +101,7 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Contents
 
             foreach (var entity in contentItems.Result)
             {
-                entity.ParseData(schema.SchemaDef);
+                entity.ParseData(schema.SchemaDef, Serializer);
             }
 
             return ResultList.Create<IContentEntity>(contentCount.Result, contentItems.Result);

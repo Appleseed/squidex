@@ -10,7 +10,7 @@
             <i class="icon-caret-down"></i>
         </a>
 
-        <sqx-onboarding-tooltip id="contentArchive" [for]="expand" position="bottomRight" after="60000">
+        <sqx-onboarding-tooltip helpId="contentArchive" [for]="expand" position="bottom-right" after="60000">
             Click this icon to show the advanced search menu and to show the archive!
         </sqx-onboarding-tooltip>
     </ng-container>
@@ -30,34 +30,34 @@
     </ng-container>
 </form>
 
-<sqx-onboarding-tooltip id="contentFind" [for]="inputFind" position="bottomRight" after="120000">
+<sqx-onboarding-tooltip helpId="contentFind" [for]="inputFind" position="bottom-right" after="120000">
     Search for content using full text search over all fields and languages!
 </sqx-onboarding-tooltip>
 
-<div class="dropdown-menu" *sqxModalView="searchModal" [sqxModalTarget]="inputFind">
+<div class="dropdown-menu" *sqxModalView="searchModal;onRoot:true" [sqxModalTarget]="inputFind">
     <div class="form-horizontal">
         <div [formGroup]="searchForm">
             <div class="form-group row">
-                <label class="col col-2 col-form-label" for="odataSearch">Text</label>
+                <label class="col-2 col-form-label" for="search">Text</label>
 
-                <div class="col col-10">
-                    <input type="input" class="form-control" id="search" (blur)="updateQuery()" formControlName="odataSearch" placeholder="Fulltext search" />
+                <div class="col-10">
+                    <input type="text" class="form-control" id="search" (blur)="updateQuery()" formControlName="odataSearch" placeholder="Fulltext search" />
                 </div>
             </div>
 
             <div class="form-group row">
-                <label class="col col-2 col-form-label" for="filter">Filter</label>
+                <label class="col-2 col-form-label" for="filter">Filter</label>
 
-                <div class="col col-10">
-                    <input type="input" class="form-control" id="filter" (blur)="updateQuery()" formControlName="odataFilter" placeholder="{{fieldExample}} eq [VALUE]" />
+                <div class="col-10">
+                    <input type="text" class="form-control" id="filter" (blur)="updateQuery()" formControlName="odataFilter" placeholder="{{fieldExample}} eq [VALUE]" />
                 </div>
             </div>
 
             <div class="form-group row">
-                <label class="col col-2 col-form-label" for="orderBy">Order</label>
+                <label class="col-2 col-form-label" for="orderBy">Order</label>
                     
-                <div class="col col-10">
-                    <input type="input" class="form-control" id="orderBy" (blur)="updateQuery()" formControlName="odataOrderBy" placeholder="{{fieldExample}} desc" />
+                <div class="col-10">
+                    <input type="text" class="form-control" id="orderBy" (blur)="updateQuery()" formControlName="odataOrderBy" placeholder="{{fieldExample}} desc" />
                 </div>
             </div>
         </div>
@@ -70,7 +70,7 @@
         </div>
 
         <div class="link">
-            Read more about filtering in the <a href="https://docs.squidex.io/04-guides/02-api.html" target="_blank">Documentation</a>.
+            Read more about filtering in the <a href="https://docs.squidex.io/04-guides/02-api.html" sqxExternalLink>Documentation</a>.
         </div>
     </div>
 </div>
@@ -91,7 +91,7 @@
             </ng-container>
         
             <ng-container footer>
-                <button type="reset" class="float-left btn btn-secondary" (click)="saveQueryComplete()" [disabled]="saveQueryForm.submitted | async">Cancel</button>
+                <button type="reset" class="float-left btn btn-secondary" (click)="saveQueryDialog.hide()" [disabled]="saveQueryForm.submitted | async">Cancel</button>
                 <button type="submit" class="float-right btn btn-success">Create</button>
             </ng-container>
         </sqx-modal-dialog>

@@ -8,74 +8,39 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using Newtonsoft.Json.Linq;
 using Squidex.Domain.Apps.Core.Contents;
 using Squidex.Domain.Apps.Core.ConvertContent;
 using Squidex.Domain.Apps.Core.ExtractReferenceIds;
 using Squidex.Domain.Apps.Core.Schemas;
+using Squidex.Infrastructure.Json;
 
 namespace Squidex.Domain.Apps.Entities.MongoDb.Contents
 {
     public static class Extensions
     {
-        private const int MaxLength = 1024 * 1024;
-
         public static List<Guid> ToReferencedIds(this IdContentData data, Schema schema)
         {
             return data.GetReferencedIds(schema).ToList();
         }
 
-        public static NamedContentData FromMongoModel(this IdContentData result, Schema schema, List<Guid> deletedIds)
+        public static NamedContentData FromMongoModel(this IdContentData result, Schema schema, List<Guid> deletedIds, IJsonSerializer serializer)
         {
             return result.ConvertId2Name(schema,
                 FieldConverters.ForValues(
-                    ValueConverters.DecodeJson(),
+                    ValueConverters.DecodeJson(serializer),
                     ValueReferencesConverter.CleanReferences(deletedIds)),
                 FieldConverters.ForNestedId2Name(
-                    ValueConverters.DecodeJson(),
+                    ValueConverters.DecodeJson(serializer),
                     ValueReferencesConverter.CleanReferences(deletedIds)));
         }
 
-        public static IdContentData ToMongoModel(this NamedContentData result, Schema schema)
+        public static IdContentData ToMongoModel(this NamedContentData result, Schema schema, IJsonSerializer serializer)
         {
             return result.ConvertName2Id(schema,
                 FieldConverters.ForValues(
-                    ValueConverters.EncodeJson()),
+                    ValueConverters.EncodeJson(serializer)),
                 FieldConverters.ForNestedName2Id(
-                    ValueConverters.EncodeJson()));
-        }
-
-        public static string ToFullText<T>(this ContentData<T> data)
-        {
-            var stringBuilder = new StringBuilder();
-
-            foreach (var text in data.Values.SelectMany(x => x.Values).Where(x => x != null).OfType<JValue>())
-            {
-                if (text.Type == JTokenType.String)
-                {
-                    var value = text.ToString();
-
-                    if (value.Length < 1000)
-                    {
-                        if (stringBuilder.Length > 0)
-                        {
-                            stringBuilder.Append(" ");
-                        }
-
-                        stringBuilder.Append(text);
-                    }
-                }
-            }
-
-            var result = stringBuilder.ToString();
-
-            if (result.Length > MaxLength)
-            {
-                result = result.Substring(MaxLength);
-            }
-
-            return result;
+                    ValueConverters.EncodeJson(serializer)));
         }
     }
 }

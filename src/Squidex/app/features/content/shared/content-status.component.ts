@@ -31,8 +31,17 @@ export class ContentStatusComponent {
     @Input()
     public showLabel = false;
 
+    @Input()
+    public alignMiddle = true;
+
     public get displayStatus() {
-        return !!this.isPending ? 'Pending' : this.status;
+        if (this.scheduledAt) {
+            return `Will be set to '${this.scheduledTo}' at ${this.scheduledAt.toStringFormat('LLLL')}`;
+        } else if (this.isPending) {
+            return 'Pending';
+        } else {
+            return this.status;
+        }
     }
 }
 

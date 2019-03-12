@@ -8,12 +8,14 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { DndModule } from 'ng2-dnd';
+import { ColorPickerModule  } from 'ngx-color-picker';
 
 import {
     CanDeactivateGuard,
     ContentMustExistGuard,
     LoadLanguagesGuard,
     SchemaMustExistPublishedGuard,
+    SchemaMustNotBeSingletonGuard,
     SqxFrameworkModule,
     SqxSharedModule,
     UnsetContentGuard
@@ -21,16 +23,22 @@ import {
 
 import {
     ArrayEditorComponent,
+    ArrayItemComponent,
     AssetsEditorComponent,
+    CommentsPageComponent,
     ContentFieldComponent,
-    ContentHistoryComponent,
+    ContentHistoryPageComponent,
     ContentItemComponent,
+    ContentItemEditorComponent,
     ContentPageComponent,
+    ContentsFiltersPageComponent,
     ContentsPageComponent,
     ContentsSelectorComponent,
     ContentStatusComponent,
     DueTimeSelectorComponent,
     FieldEditorComponent,
+    FieldLanguagesComponent,
+    PreviewButtonComponent,
     ReferencesEditorComponent,
     SchemasPageComponent
 } from './declarations';
@@ -51,12 +59,19 @@ const routes: Routes = [
                     {
                         path: '',
                         component: ContentsPageComponent,
-                        canDeactivate: [CanDeactivateGuard]
+                        canActivate: [SchemaMustNotBeSingletonGuard],
+                        canDeactivate: [CanDeactivateGuard],
+                        children: [
+                            {
+                                path: 'filters',
+                                component: ContentsFiltersPageComponent
+                            }
+                        ]
                     },
                     {
                         path: 'new',
                         component: ContentPageComponent,
-                        canActivate: [UnsetContentGuard],
+                        canActivate: [SchemaMustNotBeSingletonGuard, UnsetContentGuard],
                         canDeactivate: [CanDeactivateGuard]
                     },
                     {
@@ -67,11 +82,15 @@ const routes: Routes = [
                         children: [
                              {
                                 path: 'history',
-                                component: ContentHistoryComponent,
+                                component: ContentHistoryPageComponent,
                                 data: {
                                     channel: 'contents.{contentId}'
                                 }
-                            }
+                            },
+                            {
+                               path: 'comments',
+                               component: CommentsPageComponent
+                           }
                         ]
                     }
                 ]
@@ -81,6 +100,7 @@ const routes: Routes = [
 
 @NgModule({
     imports: [
+        ColorPickerModule,
         DndModule,
         SqxFrameworkModule,
         SqxSharedModule,
@@ -88,16 +108,22 @@ const routes: Routes = [
     ],
     declarations: [
         ArrayEditorComponent,
+        ArrayItemComponent,
         AssetsEditorComponent,
+        CommentsPageComponent,
         ContentFieldComponent,
-        ContentHistoryComponent,
+        ContentHistoryPageComponent,
         ContentItemComponent,
+        ContentItemEditorComponent,
         ContentPageComponent,
+        ContentsFiltersPageComponent,
         ContentStatusComponent,
         ContentsPageComponent,
         ContentsSelectorComponent,
         DueTimeSelectorComponent,
         FieldEditorComponent,
+        FieldLanguagesComponent,
+        PreviewButtonComponent,
         ReferencesEditorComponent,
         SchemasPageComponent
     ]

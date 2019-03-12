@@ -6,8 +6,8 @@
 // ==========================================================================
 
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using NSwag.Annotations;
 using Squidex.Areas.Api.Controllers.Contents.Generator;
 using Squidex.Domain.Apps.Entities;
 using Squidex.Infrastructure.Commands;
@@ -15,9 +15,6 @@ using Squidex.Pipeline;
 
 namespace Squidex.Areas.Api.Controllers.Contents
 {
-    [ApiExceptionFilter]
-    [AppApi]
-    [SwaggerIgnore]
     public sealed class ContentSwaggerController : ApiController
     {
         private readonly IAppProvider appProvider;
@@ -34,6 +31,7 @@ namespace Squidex.Areas.Api.Controllers.Contents
         [HttpGet]
         [Route("content/{app}/docs/")]
         [ApiCosts(0)]
+        [AllowAnonymous]
         public IActionResult Docs(string app)
         {
             var vm = new DocsVM { Specification = $"~/content/{app}/swagger/v1/swagger.json" };
@@ -44,11 +42,12 @@ namespace Squidex.Areas.Api.Controllers.Contents
         [HttpGet]
         [Route("content/{app}/swagger/v1/swagger.json")]
         [ApiCosts(0)]
+        [AllowAnonymous]
         public async Task<IActionResult> GetSwagger(string app)
         {
             var schemas = await appProvider.GetSchemasAsync(AppId);
 
-            var swaggerDocument = await schemasSwaggerGenerator.Generate(App, schemas);
+            var swaggerDocument = await schemasSwaggerGenerator.Generate(HttpContext, App, schemas);
 
             return Content(swaggerDocument.ToJson(), "application/json");
         }

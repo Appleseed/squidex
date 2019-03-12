@@ -6,7 +6,6 @@
 // ==========================================================================
 
 using System;
-using System.Collections.Immutable;
 using System.Threading.Tasks;
 using FakeItEasy;
 using Squidex.Domain.Apps.Core.Rules;
@@ -14,8 +13,8 @@ using Squidex.Domain.Apps.Core.Rules.Triggers;
 using Squidex.Domain.Apps.Entities.Rules.Commands;
 using Squidex.Domain.Apps.Entities.Schemas;
 using Squidex.Domain.Apps.Entities.TestHelpers;
-using Squidex.Domain.Apps.Rules.Action.Webhook;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.Collections;
 using Xunit;
 
 #pragma warning disable SA1310 // Field names must not contain underscore
@@ -25,9 +24,14 @@ namespace Squidex.Domain.Apps.Entities.Rules.Guards
     public class GuardRuleTests
     {
         private readonly Uri validUrl = new Uri("https://squidex.io");
-        private readonly Rule rule_0 = new Rule(new ContentChangedTrigger(), new WebhookAction());
+        private readonly Rule rule_0 = new Rule(new ContentChangedTriggerV2(), new TestAction());
         private readonly NamedId<Guid> appId = NamedId.Of(Guid.NewGuid(), "my-app");
         private readonly IAppProvider appProvider = A.Fake<IAppProvider>();
+
+        public sealed class TestAction : RuleAction
+        {
+            public Uri Url { get; set; }
+        }
 
         public GuardRuleTests()
         {
@@ -41,7 +45,7 @@ namespace Squidex.Domain.Apps.Entities.Rules.Guards
             var command = CreateCommand(new CreateRule
             {
                 Trigger = null,
-                Action = new WebhookAction
+                Action = new TestAction
                 {
                     Url = validUrl
                 }
@@ -56,9 +60,9 @@ namespace Squidex.Domain.Apps.Entities.Rules.Guards
         {
             var command = CreateCommand(new CreateRule
             {
-                Trigger = new ContentChangedTrigger
+                Trigger = new ContentChangedTriggerV2
                 {
-                    Schemas = ImmutableList<ContentChangedTriggerSchema>.Empty
+                    Schemas = ReadOnlyCollection.Empty<ContentChangedTriggerSchemaV2>()
                 },
                 Action = null
             });
@@ -72,11 +76,11 @@ namespace Squidex.Domain.Apps.Entities.Rules.Guards
         {
             var command = CreateCommand(new CreateRule
             {
-                Trigger = new ContentChangedTrigger
+                Trigger = new ContentChangedTriggerV2
                 {
-                    Schemas = ImmutableList<ContentChangedTriggerSchema>.Empty
+                    Schemas = ReadOnlyCollection.Empty<ContentChangedTriggerSchemaV2>()
                 },
-                Action = new WebhookAction
+                Action = new TestAction
                 {
                     Url = validUrl
                 }
@@ -99,11 +103,11 @@ namespace Squidex.Domain.Apps.Entities.Rules.Guards
         {
             var command = new UpdateRule
             {
-                Trigger = new ContentChangedTrigger
+                Trigger = new ContentChangedTriggerV2
                 {
-                    Schemas = ImmutableList<ContentChangedTriggerSchema>.Empty
+                    Schemas = ReadOnlyCollection.Empty<ContentChangedTriggerSchemaV2>()
                 },
-                Action = new WebhookAction
+                Action = new TestAction
                 {
                     Url = validUrl
                 }

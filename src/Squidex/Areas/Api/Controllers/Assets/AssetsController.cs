@@ -7,54 +7,55 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Microsoft.Net.Http.Headers;
 using NSwag.Annotations;
 using Squidex.Areas.Api.Controllers.Assets.Models;
+using Squidex.Areas.Api.Controllers.Contents;
+using Squidex.Domain.Apps.Core.Tags;
 using Squidex.Domain.Apps.Entities;
 using Squidex.Domain.Apps.Entities.Apps.Services;
 using Squidex.Domain.Apps.Entities.Assets;
 using Squidex.Domain.Apps.Entities.Assets.Commands;
-using Squidex.Domain.Apps.Entities.Assets.Repositories;
-using Squidex.Domain.Apps.Entities.Tags;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Assets;
 using Squidex.Infrastructure.Commands;
 using Squidex.Pipeline;
+using Squidex.Shared;
 
 namespace Squidex.Areas.Api.Controllers.Assets
 {
     /// <summary>
     /// Uploads and retrieves assets.
     /// </summary>
-    [ApiAuthorize]
-    [ApiExceptionFilter]
-    [AppApi]
-    [SwaggerTag(nameof(Assets))]
+    [ApiExplorerSettings(GroupName = nameof(Assets))]
     public sealed class AssetsController : ApiController
     {
         private readonly IAssetQueryService assetQuery;
-        private readonly IAssetStatsRepository assetStatsRepository;
-        private readonly IAppPlansProvider appPlanProvider;
+        private readonly IAssetUsageTracker assetStatsRepository;
+        private readonly IAppPlansProvider appPlansProvider;
+        private readonly IOptions<MyContentsControllerOptions> controllerOptions;
         private readonly ITagService tagService;
-        private readonly AssetConfig assetsConfig;
+        private readonly AssetOptions assetOptions;
 
         public AssetsController(
             ICommandBus commandBus,
             IAssetQueryService assetQuery,
-            IAssetStatsRepository assetStatsRepository,
-            IAppPlansProvider appPlanProvider,
-            IOptions<AssetConfig> assetsConfig,
+            IAssetUsageTracker assetStatsRepository,
+            IAppPlansProvider appPlansProvider,
+            IOptions<AssetOptions> assetOptions,
+            IOptions<MyContentsControllerOptions> controllerOptions,
             ITagService tagService)
             : base(commandBus)
         {
-            this.assetsConfig = assetsConfig.Value;
+            this.assetOptions = assetOptions.Value;
             this.assetQuery = assetQuery;
             this.assetStatsRepository = assetStatsRepository;
-            this.appPlanProvider = appPlanProvider;
+            this.appPlansProvider = appPlansProvider;
+            this.controllerOptions = controllerOptions;
             this.tagService = tagService;
         }
 
@@ -69,14 +70,14 @@ namespace Squidex.Areas.Api.Controllers.Assets
         /// <remarks>
         /// Get all tags for assets.
         /// </remarks>
-        [MustBeAppReader]
         [HttpGet]
         [Route("apps/{app}/assets/tags")]
         [ProducesResponseType(typeof(Dictionary<string, int>), 200)]
+        [ApiPermission(Permissions.AppAssetsRead)]
         [ApiCosts(1)]
         public async Task<IActionResult> GetTags(string app)
         {
-            var response = await tagService.GetTagsAsync(App.Id, TagGroups.Assets);
+            var response = await tagService.GetTagsAsync(AppId, TagGroups.Assets);
 
             return Ok(response);
         }
@@ -93,20 +94,25 @@ namespace Squidex.Areas.Api.Controllers.Assets
         /// <remarks>
         /// Get all assets for the app.
         /// </remarks>
-        [MustBeAppReader]
         [HttpGet]
         [Route("apps/{app}/assets/")]
         [ProducesResponseType(typeof(AssetsDto), 200)]
+        [ApiPermission(Permissions.AppAssetsRead)]
         [ApiCosts(1)]
         public async Task<IActionResult> GetAssets(string app, [FromQuery] string ids = null)
         {
             var context = Context();
 
-            var assets = await assetQuery.QueryAsync(context, Query.Empty.WithODataQuery(Request.QueryString.ToString()).WithIds(ids));
+            var assets = await assetQuery.QueryAsync(context, Q.Empty.WithODataQuery(Request.QueryString.ToString()).WithIds(ids));
 
             var response = AssetsDto.FromAssets(assets);
 
-            Response.Headers["Surrogate-Key"] = string.Join(" ", response.Items.Select(x => x.Id));
+            if (controllerOptions.Value.EnableSurrogateKeys && response.Items.Length <= controllerOptions.Value.MaxItemsForSurrogateKeys)
+            {
+                Response.Headers["Surrogate-Key"] = response.Items.ToSurrogateKeys();
+            }
+
+            Response.Headers[HeaderNames.ETag] = response.Items.ToManyEtag(response.Total);
 
             return Ok(response);
         }
@@ -120,10 +126,10 @@ namespace Squidex.Areas.Api.Controllers.Assets
         /// 200 => Asset found.
         /// 404 => Asset or app not found.
         /// </returns>
-        [MustBeAppReader]
         [HttpGet]
         [Route("apps/{app}/assets/{id}/")]
         [ProducesResponseType(typeof(AssetsDto), 200)]
+        [ApiPermission(Permissions.AppAssetsRead)]
         [ApiCosts(1)]
         public async Task<IActionResult> GetAsset(string app, Guid id)
         {
@@ -138,8 +144,12 @@ namespace Squidex.Areas.Api.Controllers.Assets
 
             var response = AssetDto.FromAsset(entity);
 
-            Response.Headers["ETag"] = entity.Version.ToString();
-            Response.Headers["Surrogate-Key"] = entity.Id.ToString();
+            if (controllerOptions.Value.EnableSurrogateKeys)
+            {
+                Response.Headers["Surrogate-Key"] = entity.Id.ToString();
+            }
+
+            Response.Headers[HeaderNames.ETag] = entity.Version.ToString();
 
             return Ok(response);
         }
@@ -157,11 +167,12 @@ namespace Squidex.Areas.Api.Controllers.Assets
         /// <remarks>
         /// You can only upload one file at a time. The mime type of the file is not calculated by Squidex and is required correctly.
         /// </remarks>
-        [MustBeAppEditor]
         [HttpPost]
         [Route("apps/{app}/assets/")]
         [ProducesResponseType(typeof(AssetCreatedDto), 201)]
         [ProducesResponseType(typeof(ErrorDto), 400)]
+        [ApiPermission(Permissions.AppAssetsCreate)]
+        [ApiCosts(1)]
         public async Task<IActionResult> PostAsset(string app, [SwaggerIgnore] List<IFormFile> file)
         {
             var assetFile = await CheckAssetFileAsync(file);
@@ -189,11 +200,11 @@ namespace Squidex.Areas.Api.Controllers.Assets
         /// <remarks>
         /// Use multipart request to upload an asset.
         /// </remarks>
-        [MustBeAppEditor]
         [HttpPut]
         [Route("apps/{app}/assets/{id}/content/")]
         [ProducesResponseType(typeof(AssetReplacedDto), 201)]
         [ProducesResponseType(typeof(ErrorDto), 400)]
+        [ApiPermission(Permissions.AppAssetsUpdate)]
         [ApiCosts(1)]
         public async Task<IActionResult> PutAssetContent(string app, Guid id, [SwaggerIgnore] List<IFormFile> file)
         {
@@ -203,7 +214,7 @@ namespace Squidex.Areas.Api.Controllers.Assets
             var context = await CommandBus.PublishAsync(command);
 
             var result = context.Result<AssetSavedResult>();
-            var response = AssetReplacedDto.Create(command, result);
+            var response = AssetReplacedDto.FromCommand(command, result);
 
             return StatusCode(201, response);
         }
@@ -219,12 +230,12 @@ namespace Squidex.Areas.Api.Controllers.Assets
         /// 400 => Asset name not valid.
         /// 404 => Asset or app not found.
         /// </returns>
-        [MustBeAppReader]
         [HttpPut]
         [Route("apps/{app}/assets/{id}/")]
         [ProducesResponseType(typeof(ErrorDto), 400)]
+        [ApiPermission(Permissions.AppAssetsUpdate)]
         [ApiCosts(1)]
-        public async Task<IActionResult> PutAsset(string app, Guid id, [FromBody] AssetUpdateDto request)
+        public async Task<IActionResult> PutAsset(string app, Guid id, [FromBody] UpdateAssetDto request)
         {
             await CommandBus.PublishAsync(request.ToCommand(id));
 
@@ -240,9 +251,9 @@ namespace Squidex.Areas.Api.Controllers.Assets
         /// 204 => Asset has been deleted.
         /// 404 => Asset or app not found.
         /// </returns>
-        [MustBeAppEditor]
         [HttpDelete]
         [Route("apps/{app}/assets/{id}/")]
+        [ApiPermission(Permissions.AppAssetsDelete)]
         [ApiCosts(1)]
         public async Task<IActionResult> DeleteAsset(string app, Guid id)
         {
@@ -262,16 +273,16 @@ namespace Squidex.Areas.Api.Controllers.Assets
 
             var formFile = file[0];
 
-            if (formFile.Length > assetsConfig.MaxSize)
+            if (formFile.Length > assetOptions.MaxSize)
             {
-                var error = new ValidationError($"File size cannot be longer than {assetsConfig.MaxSize.ToReadableSize()}.");
+                var error = new ValidationError($"File cannot be bigger than {assetOptions.MaxSize.ToReadableSize()}.");
 
                 throw new ValidationException("Cannot create asset.", error);
             }
 
-            var plan = appPlanProvider.GetPlanForApp(App);
+            var plan = appPlansProvider.GetPlanForApp(App);
 
-            var currentSize = await assetStatsRepository.GetTotalSizeAsync(App.Id);
+            var currentSize = await assetStatsRepository.GetTotalSizeAsync(AppId);
 
             if (plan.MaxAssetSize > 0 && plan.MaxAssetSize < currentSize + formFile.Length)
             {

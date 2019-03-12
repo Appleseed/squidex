@@ -11,18 +11,20 @@ namespace Squidex.Infrastructure.UsageTracking
 {
     public sealed class StoredUsage
     {
+        public string Category { get; }
+
         public DateTime Date { get; }
 
-        public long TotalCount { get; }
+        public Counters Counters { get;  }
 
-        public long TotalElapsedMs { get; }
-
-        public StoredUsage(DateTime date, long totalCount, long totalElapsedMs)
+        public StoredUsage(string category, DateTime date, Counters counters)
         {
-            Date = date;
+            Guard.NotNull(counters, nameof(counters));
 
-            TotalCount = totalCount;
-            TotalElapsedMs = totalElapsedMs;
+            Category = category;
+            Counters = counters;
+
+            Date = date;
         }
     }
 }

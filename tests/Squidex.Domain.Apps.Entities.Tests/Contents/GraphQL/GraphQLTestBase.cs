@@ -12,8 +12,7 @@ using FakeItEasy;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using NodaTime.Extensions;
+using NodaTime;
 using Squidex.Domain.Apps.Core;
 using Squidex.Domain.Apps.Core.Apps;
 using Squidex.Domain.Apps.Core.Contents;
@@ -23,6 +22,8 @@ using Squidex.Domain.Apps.Entities.Assets;
 using Squidex.Domain.Apps.Entities.Contents.TestData;
 using Squidex.Domain.Apps.Entities.Schemas;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.Json;
+using Squidex.Infrastructure.Json.Objects;
 using Xunit;
 
 #pragma warning disable SA1311 // Static readonly fields must begin with upper-case letter
@@ -32,13 +33,14 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
 {
     public class GraphQLTestBase
     {
-        protected static readonly Guid schemaId = Guid.NewGuid();
-        protected static readonly Guid appId = Guid.NewGuid();
-        protected static readonly string appName = "my-app";
         protected readonly Schema schemaDef;
+        protected readonly Guid schemaId = Guid.NewGuid();
+        protected readonly Guid appId = Guid.NewGuid();
+        protected readonly string appName = "my-app";
         protected readonly IContentQueryService contentQuery = A.Fake<IContentQueryService>();
         protected readonly IAssetQueryService assetQuery = A.Fake<IAssetQueryService>();
         protected readonly ISchemaEntity schema = A.Fake<ISchemaEntity>();
+        protected readonly IJsonSerializer serializer = TestUtils.CreateSerializer(TypeNameHandling.None);
         protected readonly IMemoryCache cache = new MemoryCache(Options.Create(new MemoryCacheOptions()));
         protected readonly IAppProvider appProvider = A.Fake<IAppProvider>();
         protected readonly IAppEntity app = A.Dummy<IAppEntity>();
@@ -70,21 +72,22 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
                         new GeolocationFieldProperties())
                     .AddTags(11, "my-tags", Partitioning.Invariant,
                         new TagsFieldProperties())
-                    .AddArray(12, "my-array", Partitioning.Invariant, f => f
+                    .AddString(12, "my-localized", Partitioning.Language,
+                        new StringFieldProperties())
+                    .AddArray(13, "my-array", Partitioning.Invariant, f => f
                         .AddBoolean(121, "nested-boolean")
-                        .AddNumber(122, "nested-number"));
+                        .AddNumber(122, "nested-number"))
+                    .ConfigureScripts(new SchemaScripts { Query = "<query-script>" })
+                    .Publish();
 
             A.CallTo(() => app.Id).Returns(appId);
             A.CallTo(() => app.Name).Returns(appName);
-            A.CallTo(() => app.LanguagesConfig).Returns(LanguagesConfig.Build(Language.DE));
+            A.CallTo(() => app.LanguagesConfig).Returns(LanguagesConfig.Build(Language.DE, Language.GermanGermany));
 
             context = QueryContext.Create(app, user);
 
             A.CallTo(() => schema.Id).Returns(schemaId);
-            A.CallTo(() => schema.Name).Returns(schemaDef.Name);
             A.CallTo(() => schema.SchemaDef).Returns(schemaDef);
-            A.CallTo(() => schema.IsPublished).Returns(true);
-            A.CallTo(() => schema.ScriptQuery).Returns("<script-query>");
 
             var allSchemas = new List<ISchemaEntity> { schema };
 
@@ -93,9 +96,9 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
             sut = new CachingGraphQLService(cache, appProvider, assetQuery, contentQuery, new FakeUrlGenerator());
         }
 
-        protected static IContentEntity CreateContent(Guid id, Guid refId, Guid assetId, NamedContentData data = null)
+        protected static IContentEntity CreateContent(Guid id, Guid refId, Guid assetId, NamedContentData data = null, NamedContentData dataDraft = null)
         {
-            var now = DateTime.UtcNow.ToInstant();
+            var now = SystemClock.Instance.GetCurrentInstant();
 
             data = data ??
                 new NamedContentData()
@@ -104,37 +107,40 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
                             .AddValue("de", "value"))
                     .AddField("my-assets",
                         new ContentFieldData()
-                            .AddValue("iv", JToken.FromObject(new[] { assetId })))
+                            .AddValue("iv", JsonValue.Array(assetId.ToString())))
                     .AddField("my-number",
                         new ContentFieldData()
-                            .AddValue("iv", 1))
+                            .AddValue("iv", 1.0))
                     .AddField("my-boolean",
                         new ContentFieldData()
                             .AddValue("iv", true))
                     .AddField("my-datetime",
                         new ContentFieldData()
-                            .AddValue("iv", now.ToDateTimeUtc()))
+                            .AddValue("iv", now))
                     .AddField("my-tags",
                         new ContentFieldData()
-                            .AddValue("iv", JToken.FromObject(new[] { "tag1", "tag2" })))
+                            .AddValue("iv", JsonValue.Array("tag1", "tag2")))
                     .AddField("my-references",
                         new ContentFieldData()
-                            .AddValue("iv", JToken.FromObject(new[] { refId })))
+                            .AddValue("iv", JsonValue.Array(refId.ToString())))
                     .AddField("my-geolocation",
                         new ContentFieldData()
-                            .AddValue("iv", JToken.FromObject(new { latitude = 10, longitude = 20 })))
+                            .AddValue("iv", JsonValue.Object().Add("latitude", 10).Add("longitude", 20)))
                     .AddField("my-json",
                         new ContentFieldData()
-                            .AddValue("iv", JToken.FromObject(new { value = 1 })))
+                            .AddValue("iv", JsonValue.Object().Add("value", 1)))
+                    .AddField("my-localized",
+                        new ContentFieldData()
+                            .AddValue("de-DE", "de-DE"))
                     .AddField("my-array",
                         new ContentFieldData()
-                            .AddValue("iv", new JArray(
-                                new JObject(
-                                    new JProperty("nested-boolean", true),
-                                    new JProperty("nested-number", 1)),
-                                new JObject(
-                                    new JProperty("nested-boolean", false),
-                                    new JProperty("nested-number", 2)))));
+                            .AddValue("iv", JsonValue.Array(
+                                JsonValue.Object()
+                                    .Add("nested-boolean", true)
+                                    .Add("nested-number", 1),
+                                JsonValue.Object()
+                                    .Add("nested-boolean", false)
+                                    .Add("nested-number", 2))));
 
             var content = new ContentEntity
             {
@@ -144,7 +150,8 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
                 CreatedBy = new RefToken(RefTokenType.Subject, "user1"),
                 LastModified = now,
                 LastModifiedBy = new RefToken(RefTokenType.Subject, "user2"),
-                Data = data
+                Data = data,
+                DataDraft = dataDraft
             };
 
             return content;
@@ -152,7 +159,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
 
         protected static IAssetEntity CreateAsset(Guid id)
         {
-            var now = DateTime.UtcNow.ToInstant();
+            var now = SystemClock.Instance.GetCurrentInstant();
 
             var asset = new FakeAssetEntity
             {
@@ -174,22 +181,22 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
             return asset;
         }
 
-        protected static void AssertResult(object expected, (bool HasErrors, object Response) result, bool checkErrors = true)
+        protected void AssertResult(object expected, (bool HasErrors, object Response) result, bool checkErrors = true)
         {
             if (checkErrors && result.HasErrors)
             {
-                throw new InvalidOperationException(NewMethod(result));
+                throw new InvalidOperationException(Serialize(result));
             }
 
-            var resultJson = JsonConvert.SerializeObject(result.Response, Formatting.Indented);
-            var expectJson = JsonConvert.SerializeObject(expected, Formatting.Indented);
+            var resultJson = serializer.Serialize(result.Response, true);
+            var expectJson = serializer.Serialize(expected, true);
 
             Assert.Equal(expectJson, resultJson);
         }
 
-        private static string NewMethod((bool HasErrors, object Response) result)
+        private string Serialize((bool HasErrors, object Response) result)
         {
-            return JsonConvert.SerializeObject(result).ToString();
+            return serializer.Serialize(result);
         }
     }
 }

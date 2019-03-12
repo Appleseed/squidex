@@ -21,7 +21,7 @@ import { EventConsumerDto, EventConsumersService } from './../services/event-con
 interface Snapshot {
     eventConsumers: ImmutableArray<EventConsumerDto>;
 
-    isLoaded?: false;
+    isLoaded?: boolean;
 }
 
 @Injectable()
@@ -59,7 +59,7 @@ export class EventConsumersState extends State<Snapshot> {
                 });
             }),
             catchError(error => {
-                if (silent) {
+                if (!silent) {
                     this.dialogs.notifyError(error);
                 }
 

@@ -54,13 +54,18 @@ export class SchemaDetailsDto extends SchemaDto {
     public listFields: RootFieldDto[];
     public listFieldsEditable: RootFieldDto[];
 
-    constructor(id: string, name: string, category: string, properties: SchemaPropertiesDto, isSingleton: boolean, isPublished: boolean, created: DateTime, createdBy: string, lastModified: DateTime, lastModifiedBy: string, version: Version,
-        public readonly fields: RootFieldDto[],
-        public readonly scriptQuery?: string,
-        public readonly scriptCreate?: string,
-        public readonly scriptUpdate?: string,
-        public readonly scriptDelete?: string,
-        public readonly scriptChange?: string
+    constructor(id: string, name: string, category: string,
+        properties: SchemaPropertiesDto,
+        isSingleton: boolean,
+        isPublished: boolean,
+        created: DateTime,
+        createdBy: string,
+        lastModified: DateTime,
+        lastModifiedBy: string,
+        version: Version,
+        public readonly fields: RootFieldDto[] = [],
+        public readonly scripts = {},
+        public readonly previewUrls = {}
     ) {
         super(id, name, category, properties, isSingleton, isPublished, created, createdBy, lastModified, lastModifiedBy, version);
 
@@ -125,6 +130,14 @@ export class RootFieldDto extends FieldDto {
 
     public get isArray() {
         return this.properties.fieldType === 'Array';
+    }
+
+    public get isString() {
+        return this.properties.fieldType === 'String';
+    }
+
+    public get isTranslatable() {
+        return this.isLocalizable && this.isString && (this.properties.editor === 'Input' || this.properties.editor === 'Textarea');
     }
 
     constructor(fieldId: number, name: string, properties: FieldPropertiesDto,
@@ -202,17 +215,6 @@ export class UpdateSchemaDto {
     constructor(
         public readonly label?: string,
         public readonly hints?: string
-    ) {
-    }
-}
-
-export class UpdateSchemaScriptsDto {
-    constructor(
-        public readonly scriptQuery?: string,
-        public readonly scriptCreate?: string,
-        public readonly scriptUpdate?: string,
-        public readonly scriptDelete?: string,
-        public readonly scriptChange?: string
     ) {
     }
 }
@@ -309,11 +311,8 @@ export class SchemasService {
                     DateTime.parseISO_UTC(body.lastModified), body.lastModifiedBy,
                     response.version,
                     fields,
-                    body.scriptQuery,
-                    body.scriptCreate,
-                    body.scriptUpdate,
-                    body.scriptDelete,
-                    body.scriptChange);
+                    body.scripts || {},
+                    body.previewUrls || {});
             }),
             pretifyError('Failed to load schema. Please reload.'));
     }
@@ -337,14 +336,9 @@ export class SchemasService {
                     now, user,
                     now, user,
                     response.version,
-                    dto.fields || [],
-                    body.scriptQuery,
-                    body.scriptCreate,
-                    body.scriptUpdate,
-                    body.scriptDelete,
-                    body.scriptChange);
+                    dto.fields || []);
             }),
-            tap(schema => {
+            tap(() => {
                 this.analytics.trackEvent('Schema', 'Created', appName);
             }),
             pretifyError('Failed to create schema. Please reload.'));
@@ -360,7 +354,7 @@ export class SchemasService {
             pretifyError('Failed to delete schema. Please reload.'));
     }
 
-    public putScripts(appName: string, schemaName: string, dto: UpdateSchemaScriptsDto, version: Version): Observable<Versioned<any>> {
+    public putScripts(appName: string, schemaName: string, dto: {}, version: Version): Observable<Versioned<any>> {
         const url = this.apiUrl.buildUrl(`api/apps/${appName}/schemas/${schemaName}/scripts`);
 
         return HTTP.putVersioned(this.http, url, dto, version).pipe(
@@ -408,6 +402,16 @@ export class SchemasService {
                 this.analytics.trackEvent('Schema', 'CategoryChanged', appName);
             }),
             pretifyError('Failed to change category. Please reload.'));
+    }
+
+    public putPreviewUrls(appName: string, schemaName: string, dto: {}, version: Version): Observable<Versioned<any>> {
+        const url = this.apiUrl.buildUrl(`api/apps/${appName}/schemas/${schemaName}/preview-urls`);
+
+        return HTTP.putVersioned(this.http, url, dto, version).pipe(
+            tap(() => {
+                this.analytics.trackEvent('Schema', 'PreviewUrlsConfigured', appName);
+            }),
+            pretifyError('Failed to configure preview urls. Please reload.'));
     }
 
     public postField(appName: string, schemaName: string, dto: AddFieldDto, parentId: number | undefined, version: Version): Observable<Versioned<RootFieldDto | NestedFieldDto>> {

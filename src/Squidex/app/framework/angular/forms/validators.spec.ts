@@ -18,6 +18,14 @@ describe('ValidatorsEx.between', () => {
         expect(validator).toBe(Validators.nullValidator);
     });
 
+    it('should return null when value is equal to min and max', () => {
+        const input = new FormControl(3);
+
+        const error = <any>ValidatorsEx.between(3, 3)(input);
+
+        expect(error).toBeNull();
+    });
+
     it('should return null when value is valid', () => {
         const input = new FormControl(4);
 
@@ -26,28 +34,124 @@ describe('ValidatorsEx.between', () => {
         expect(error).toBeNull();
     });
 
-    it('should return error when not a number', () => {
-        const input = new FormControl('text');
+    it('should return null when value is null', () => {
+        const input = new FormControl(null);
 
         const error = <any>ValidatorsEx.between(1, 5)(input);
 
-        expect(error.validnumber).toBeFalsy();
+        expect(error).toBeNull();
     });
 
-    it('should return error if less than minimum setting', () => {
-        const input = new FormControl(-5);
+    it('should return null when value is undefined', () => {
+        const input = new FormControl(undefined);
 
         const error = <any>ValidatorsEx.between(1, 5)(input);
 
-        expect(error.minvalue).toBeDefined();
+        expect(error).toBeNull();
     });
 
-    it('should return error if greater than maximum setting', () => {
-        const input = new FormControl(300);
+    it('should return error if less than min', () => {
+        const input = new FormControl(0);
 
-        const error = <any>ValidatorsEx.between(1, 5)(input);
+        const error = <any>ValidatorsEx.between(1, undefined)(input);
 
-        expect(error.maxvalue).toBeDefined();
+        expect(error.min).toBeDefined();
+    });
+
+    it('should return error if greater than max', () => {
+        const input = new FormControl(6);
+
+        const error = <any>ValidatorsEx.between(undefined, 5)(input);
+
+        expect(error.max).toBeDefined();
+    });
+
+    it('should return error if not in range', () => {
+        const input = new FormControl(1);
+
+        const error = <any>ValidatorsEx.between(2, 4)(input);
+
+        expect(error.between).toBeDefined();
+    });
+
+    it('should return error if not equal to min and max', () => {
+        const input = new FormControl(2);
+
+        const error = <any>ValidatorsEx.between(3, 3)(input);
+
+        expect(error.exactly).toBeDefined();
+    });
+});
+
+describe('ValidatorsEx.betweenLength', () => {
+    it('should return null validator if no min value or max value', () => {
+        const validator = ValidatorsEx.betweenLength(undefined, undefined);
+
+        expect(validator).toBe(Validators.nullValidator);
+    });
+
+    it('should return null when value is equal to min and max', () => {
+        const input = new FormControl('xxx');
+
+        const error = <any>ValidatorsEx.betweenLength(3, 3)(input);
+
+        expect(error).toBeNull();
+    });
+
+    it('should return null when value is valid', () => {
+        const input = new FormControl('xxxx');
+
+        const error = <any>ValidatorsEx.betweenLength(1, 5)(input);
+
+        expect(error).toBeNull();
+    });
+
+    it('should return null when value is null', () => {
+        const input = new FormControl(null);
+
+        const error = <any>ValidatorsEx.betweenLength(1, 5)(input);
+
+        expect(error).toBeNull();
+    });
+
+    it('should return null when value is undefined', () => {
+        const input = new FormControl(undefined);
+
+        const error = <any>ValidatorsEx.betweenLength(1, 5)(input);
+
+        expect(error).toBeNull();
+    });
+
+    it('should return error if less than min', () => {
+        const input = new FormControl('x');
+
+        const error = <any>ValidatorsEx.betweenLength(2, undefined)(input);
+
+        expect(error.minlength).toBeDefined();
+    });
+
+    it('should return error if greater than max', () => {
+        const input = new FormControl('xxxxxx');
+
+        const error = <any>ValidatorsEx.betweenLength(undefined, 5)(input);
+
+        expect(error.maxlength).toBeDefined();
+    });
+
+    it('should return error if not in range', () => {
+        const input = new FormControl('x');
+
+        const error = <any>ValidatorsEx.betweenLength(2, 4)(input);
+
+        expect(error.betweenlength).toBeDefined();
+    });
+
+    it('should return error if not equal to min and max', () => {
+        const input = new FormControl('xx');
+
+        const error = <any>ValidatorsEx.betweenLength(3, 3)(input);
+
+        expect(error.exactlylength).toBeDefined();
     });
 });
 
@@ -98,6 +202,30 @@ describe('ValidatorsEx.validValues', () => {
         const error = <any>ValidatorsEx.validValues([10, 20, 30])(input);
 
         expect(error.validvalues).toBeDefined();
+    });
+});
+
+describe('ValidatorsEx.validArrayValues', () => {
+    it('should return null validator if values not defined', () => {
+        const validator = ValidatorsEx.validArrayValues(null!);
+
+        expect(validator).toBe(Validators.nullValidator);
+    });
+
+    it('should return null if value is in allowed values', () => {
+        const input = new FormControl([10, 20]);
+
+        const error = ValidatorsEx.validArrayValues([10, 20, 30])(input);
+
+        expect(error).toBeNull();
+    });
+
+    it('should return error if value is not in allowed values', () => {
+        const input = new FormControl([50]);
+
+        const error = <any>ValidatorsEx.validArrayValues([10, 20, 30])(input);
+
+        expect(error.validarrayvalues).toBeDefined();
     });
 });
 
@@ -242,15 +370,5 @@ describe('ValidatorsEx.pattern', () => {
         };
 
         expect(error).toEqual(expected);
-    });
-});
-
-describe('ValidatorsEx.noop', () => {
-    it('should return null validator', () => {
-        const input = new FormControl(null);
-
-        const error = <any>ValidatorsEx.noop()(input);
-
-        expect(error).toBeNull();
     });
 });

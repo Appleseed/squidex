@@ -1,9 +1,9 @@
 <sqx-title message="{app} | {schema} | Content" parameter1="app" parameter2="schema" [value1]="appsState.appName" [value2]="schema.displayName"></sqx-title>
 
 <form [formGroup]="contentForm.form" (ngSubmit)="saveAndPublish()">
-    <sqx-panel desiredWidth="*" [showSidebar]="content">
+    <sqx-panel desiredWidth="*" minWidth="60rem" [showSidebar]="content">
         <ng-container title>
-            <a class="btn btn-link" (click)="back()" *ngIf="!schema.isSingleton">
+            <a class="btn btn-text" (click)="back()" *ngIf="!schema.isSingleton">
                 <i class="icon-angle-left"></i>
             </a>
 
@@ -32,9 +32,12 @@
             </ng-container>
             <ng-template #notNew>
                 <div class="dropdown dropdown-options ml-1" *ngIf="content">
-                    <button type="button" class="btn btn-outline-secondary" (click)="dropdown.toggle()" [disabled]="schema.isSingleton && !content.isPending" 
+                    <sqx-preview-button [schema]="schema" [content]="content"></sqx-preview-button>
+
+                    <button type="button" class="btn btn-outline-secondary btn-status" (click)="dropdown.toggle()" [disabled]="schema.isSingleton && !content.isPending" 
                         [class.active]="dropdown.isOpen | async" #optionsButton>
-                        <sqx-content-status 
+                        <sqx-content-status
+                            [alignMiddle]="false"
                             [status]="content.status"
                             [scheduledTo]="content.scheduleJob?.status"
                             [scheduledAt]="content.scheduleJob?.dueTime"
@@ -112,21 +115,29 @@
                 <sqx-content-field 
                     [form]="contentForm"
                     [field]="field"
-                    [fieldForm]="contentForm.form.get(field.name)" 
-                    [(language)]="language"
-                    [languages]="languages">
+                    [fieldForm]="contentForm.form.get(field.name)"
+                    [fieldFormCompare]="contentFormCompare?.form.get(field.name)"
+                    [schema]="schema"
+                    [languages]="languages.mutableValues"
+                    [(language)]="language">
                 </sqx-content-field>
             </div>
         </ng-container>
 
         <ng-container sidebar>
-            <a class="panel-link" routerLink="history" routerLinkActive="active" #linkHistory>
-                <i class="icon-time"></i>
-            </a>
+            <div class="panel-nav">
+                <a class="panel-link" routerLink="comments" routerLinkActive="active" title="Comments" titlePosition="left">
+                    <i class="icon-comments"></i>
+                </a>
 
-            <sqx-onboarding-tooltip id="history" [for]="linkHistory" position="leftTop" after="120000">
-                The sidebar navigation contains useful context specific links. Here you can view the history how this schema has changed over time.
-            </sqx-onboarding-tooltip>
+                <a class="panel-link" routerLink="history" routerLinkActive="active" title="History" titlePosition="left" #historyLink>
+                    <i class="icon-time"></i>
+                </a>
+
+                <sqx-onboarding-tooltip helpId="history" [for]="historyLink" position="left-top" after="120000">
+                    The sidebar navigation contains useful context specific links. Here you can view the history how this schema has changed over time.
+                </sqx-onboarding-tooltip>
+            </div>
         </ng-container>
     </sqx-panel>
 </form>

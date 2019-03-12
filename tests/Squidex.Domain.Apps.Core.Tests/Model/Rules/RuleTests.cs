@@ -9,10 +9,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using Squidex.Domain.Apps.Core.Rules;
 using Squidex.Domain.Apps.Core.Rules.Triggers;
+using Squidex.Infrastructure;
 using Xunit;
 
 #pragma warning disable SA1310 // Field names must not contain underscore
@@ -21,16 +20,14 @@ namespace Squidex.Domain.Apps.Core.Model.Rules
 {
     public class RuleTests
     {
-        private readonly JsonSerializer serializer = TestData.DefaultSerializer();
-
         public static readonly List<object[]> Triggers =
             typeof(Rule).Assembly.GetTypes()
                 .Where(x => x.BaseType == typeof(RuleTrigger))
                 .Select(Activator.CreateInstance)
-                .Select(x => new object[] { x })
+                .Select(x => new[] { x })
                 .ToList();
 
-        private readonly Rule rule_0 = new Rule(new ContentChangedTrigger(), new FirstAction());
+        private readonly Rule rule_0 = new Rule(new ContentChangedTriggerV2(), new TestAction1());
 
         public sealed class OtherTrigger : RuleTrigger
         {
@@ -40,12 +37,14 @@ namespace Squidex.Domain.Apps.Core.Model.Rules
             }
         }
 
-        public sealed class FirstAction : RuleAction
+        [TypeName(nameof(TestAction1))]
+        public sealed class TestAction1 : RuleAction
         {
             public string Property { get; set; }
         }
 
-        public sealed class OtherAction : RuleAction
+        [TypeName(nameof(TestAction2))]
+        public sealed class TestAction2 : RuleAction
         {
             public string Property { get; set; }
         }
@@ -53,8 +52,8 @@ namespace Squidex.Domain.Apps.Core.Model.Rules
         [Fact]
         public void Should_create_with_trigger_and_action()
         {
-            var ruleTrigger = new ContentChangedTrigger();
-            var ruleAction = new FirstAction();
+            var ruleTrigger = new ContentChangedTriggerV2();
+            var ruleAction = new TestAction1();
 
             var newRule = new Rule(ruleTrigger, ruleAction);
 
@@ -87,7 +86,7 @@ namespace Squidex.Domain.Apps.Core.Model.Rules
         [Fact]
         public void Should_replace_trigger_when_updating()
         {
-            var newTrigger = new ContentChangedTrigger();
+            var newTrigger = new ContentChangedTriggerV2();
 
             var rule_1 = rule_0.Update(newTrigger);
 
@@ -104,7 +103,7 @@ namespace Squidex.Domain.Apps.Core.Model.Rules
         [Fact]
         public void Should_replace_action_when_updating()
         {
-            var newAction = new FirstAction();
+            var newAction = new TestAction1();
 
             var rule_1 = rule_0.Update(newAction);
 
@@ -115,7 +114,7 @@ namespace Squidex.Domain.Apps.Core.Model.Rules
         [Fact]
         public void Should_throw_exception_when_new_action_has_other_type()
         {
-            Assert.Throws<ArgumentException>(() => rule_0.Update(new OtherAction()));
+            Assert.Throws<ArgumentException>(() => rule_0.Update(new TestAction2()));
         }
 
         [Fact]
@@ -123,16 +122,16 @@ namespace Squidex.Domain.Apps.Core.Model.Rules
         {
             var rule_1 = rule_0.Disable();
 
-            var appClients = JToken.FromObject(rule_1, serializer).ToObject<Rule>(serializer);
+            var serialized = rule_1.SerializeAndDeserialize();
 
-            appClients.Should().BeEquivalentTo(rule_0);
+            serialized.Should().BeEquivalentTo(rule_1);
         }
 
         [Theory]
         [MemberData(nameof(Triggers))]
         public void Should_freeze_triggers(RuleTrigger trigger)
         {
-            TestData.TestFreeze(trigger);
+            TestUtils.TestFreeze(trigger);
         }
     }
 }

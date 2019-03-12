@@ -5,8 +5,7 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { Component, OnDestroy, OnInit } from '@angular/core';
-import { Subscription } from 'rxjs';
+import { Component, OnInit } from '@angular/core';
 import { filter, map, switchMap } from 'rxjs/operators';
 
 import {
@@ -17,8 +16,23 @@ import {
     fadeAnimation,
     HistoryEventDto,
     HistoryService,
+    ResourceOwner,
     UsagesService
 } from '@app/shared';
+
+const COLORS = [
+    ' 51, 137, 213',
+    '211,  50,  50',
+    '131, 211,  50',
+    ' 50, 211, 131',
+    ' 50, 211, 211',
+    ' 50, 131, 211',
+    ' 50,  50, 211',
+    ' 50, 211,  50',
+    '131,  50, 211',
+    '211,  50, 211',
+    '211,  50, 131'
+];
 
 @Component({
     selector: 'sqx-dashboard-page',
@@ -28,9 +42,7 @@ import {
         fadeAnimation
     ]
 })
-export class DashboardPageComponent implements OnDestroy, OnInit {
-    private subscriptions: Subscription[] = [];
-
+export class DashboardPageComponent extends ResourceOwner implements OnInit {
     public profileDisplayName = '';
 
     public chartStorageCount: any;
@@ -38,23 +50,40 @@ export class DashboardPageComponent implements OnDestroy, OnInit {
     public chartCallsCount: any;
     public chartCallsPerformance: any;
 
+    public isPerformanceStacked = false;
+
     public app = this.appsState.selectedApp.pipe(filter(x => !!x), map(x => <AppDto>x));
 
     public chartOptions = {
         responsive: true,
         scales: {
-            xAxes: [
-                {
-                    display: true
-                }
-            ],
-            yAxes: [
-                {
-                    ticks: {
-                        beginAtZero: true
-                    }
-                }
-            ]
+            xAxes: [{
+                display: true,
+                stacked: false
+            }],
+            yAxes: [{
+                ticks: {
+                    beginAtZero: true
+                },
+                stacked: false
+            }]
+        },
+        maintainAspectRatio: false
+    };
+
+    public stackedChartOptions = {
+        responsive: true,
+        scales: {
+            xAxes: [{
+                display: true,
+                stacked: true
+            }],
+            yAxes: [{
+                ticks: {
+                    beginAtZero: true
+                },
+                stacked: true
+            }]
         },
         maintainAspectRatio: false
     };
@@ -73,18 +102,11 @@ export class DashboardPageComponent implements OnDestroy, OnInit {
         private readonly historyService: HistoryService,
         private readonly usagesService: UsagesService
     ) {
-    }
-
-    public ngOnDestroy() {
-        for (let subscription of this.subscriptions) {
-            subscription.unsubscribe();
-        }
-
-        this.subscriptions = [];
+        super();
     }
 
     public ngOnInit() {
-        this.subscriptions.push(
+        this.own(
             this.app.pipe(
                     switchMap(app => this.usagesService.getTodayStorage(app.name)))
                 .subscribe(dto => {
@@ -92,7 +114,7 @@ export class DashboardPageComponent implements OnDestroy, OnInit {
                     this.assetsMax = dto.maxAllowed;
                 }));
 
-        this.subscriptions.push(
+        this.own(
             this.app.pipe(
                     switchMap(app => this.usagesService.getMonthCalls(app.name)))
                 .subscribe(dto => {
@@ -100,26 +122,28 @@ export class DashboardPageComponent implements OnDestroy, OnInit {
                     this.callsMax = dto.maxAllowed;
                 }));
 
-        this.subscriptions.push(
+        this.own(
             this.app.pipe(
                     switchMap(app => this.historyService.getHistory(app.name, '')))
                 .subscribe(dto => {
                     this.history = dto;
                 }));
 
-        this.subscriptions.push(
+        this.own(
             this.app.pipe(
                     switchMap(app => this.usagesService.getStorageUsages(app.name, DateTime.today().addDays(-20), DateTime.today())))
                 .subscribe(dtos => {
+                    const labels = createLabels(dtos);
+
                     this.chartStorageCount = {
-                        labels: createLabels(dtos),
+                        labels,
                         datasets: [
                             {
-                                label: 'Number of Assets',
+                                label: 'All',
                                 lineTension: 0,
                                 fill: false,
-                                backgroundColor: 'rgba(51, 137, 213, 0.6)',
-                                borderColor: 'rgba(51, 137, 213, 1)',
+                                backgroundColor: `rgba(${COLORS[0]}, 0.6)`,
+                                borderColor: `rgba(${COLORS[0]}, 1)`,
                                 borderWidth: 1,
                                 data: dtos.map(x => x.count)
                             }
@@ -127,55 +151,70 @@ export class DashboardPageComponent implements OnDestroy, OnInit {
                     };
 
                     this.chartStorageSize = {
-                        labels: createLabels(dtos),
+                        labels,
                         datasets: [
                             {
-                                label: 'Size of Assets (MB)',
+                                label: 'All',
                                 lineTension: 0,
                                 fill: false,
-                                backgroundColor: 'rgba(51, 137, 213, 0.6)',
-                                borderColor: 'rgba(51, 137, 213, 1)',
+                                backgroundColor: `rgba(${COLORS[0]}, 0.6)`,
+                                borderColor: `rgba(${COLORS[0]}, 1)`,
                                 borderWidth: 1,
-                                data: dtos.map(x => Math.round(10 * (x.size / (1024 * 1024))) / 10)
+                                data: dtos.map(x => Math.round(100 * (x.size / (1024 * 1024))) / 100)
                             }
                         ]
                     };
                 }));
 
-        this.subscriptions.push(
+        this.own(
             this.app.pipe(
                     switchMap(app => this.usagesService.getCallsUsages(app.name, DateTime.today().addDays(-20), DateTime.today())))
                 .subscribe(dtos => {
+                    const labels = createLabelsFromSet(dtos);
+
                     this.chartCallsCount = {
-                        labels: createLabels(dtos),
-                        datasets: [
+                        labels,
+                        datasets: Object.keys(dtos).map((k, i) => (
                             {
-                                label: 'Number of API Calls',
-                                backgroundColor: 'rgba(51, 137, 213, 0.6)',
-                                borderColor: 'rgba(51, 137, 213, 1)',
+                                label: label(k),
+                                backgroundColor: `rgba(${COLORS[i]}, 0.6)`,
+                                borderColor: `rgba(${COLORS[i]}, 1)`,
                                 borderWidth: 1,
-                                data: dtos.map(x => x.count)
-                            }
-                        ]
+                                data: dtos[k].map(x => x.count)
+                            }))
                     };
 
                     this.chartCallsPerformance = {
-                        labels: createLabels(dtos),
-                        datasets: [
+                        labels,
+                        datasets: Object.keys(dtos).map((k, i) => (
                             {
-                                label: 'API Performance (Milliseconds)',
-                                backgroundColor: 'rgba(51, 137, 213, 0.6)',
-                                borderColor: 'rgba(51, 137, 213, 1)',
+                                label: label(k),
+                                backgroundColor: `rgba(${COLORS[i]}, 0.6)`,
+                                borderColor: `rgba(${COLORS[i]}, 1)`,
                                 borderWidth: 1,
-                                data: dtos.map(x => x.averageMs)
-                            }
-                        ]
+                                data: dtos[k].map(x => x.averageMs)
+                            }))
                     };
                 }));
     }
+
+    public downloadLog() {
+        this.usagesService.getLog(this.appsState.appName)
+            .subscribe(url => {
+                window.open(url, '_blank');
+            });
+    }
+}
+
+function label(category: string) {
+    return category === '*' ? 'anonymous' : category;
 }
 
 function createLabels(dtos: { date: DateTime }[]): string[] {
     return dtos.map(d => d.date.toStringFormat('M-DD'));
+}
+
+function createLabelsFromSet(dtos: { [category: string]: { date: DateTime }[] }): string[] {
+    return createLabels(dtos[Object.keys(dtos)[0]]);
 }
 

@@ -1,7 +1,7 @@
-<div class="table-items-row">
-    <div class="row no-gutters">
-        <div class="col">
-            <div class="client-header">
+<div class="card">
+    <div class="card-header">
+        <div class="row no-gutters">
+            <div class="col col-name">
                 <form *ngIf="isRenaming" class="form-inline" [formGroup]="renameForm.form" (ngSubmit)="rename()">
                     <div class="form-group mr-1">
                         <sqx-control-errors for="name"></sqx-control-errors>
@@ -11,7 +11,7 @@
 
                     <button type="submit" class="btn btn-primary" [disabled]="!renameForm.form.valid || !renameForm.form.dirty">Save</button>
 
-                    <button class="btn btn-link btn-secondary btn-cancel" (click)="toggleRename()">
+                    <button type="button" class="btn btn-text-secondary btn-cancel" (click)="toggleRename()">
                         <i class="icon-close"></i>
                     </button>
                 </form>
@@ -24,67 +24,120 @@
                     <i class="client-edit icon-pencil" (click)="toggleRename()"></i>
                 </ng-container>
             </div>
-                
-            <div class="client-expires">Access tokens expire after 30 days</div>
-        </div>
-        <div class="col col-auto">
-            <button class="btn btn-secondary" (click)="createToken(client)">Create Token</button>
-        </div>
-        <div class="col col-auto cell-actions">
-            <button type="button" class="btn btn-link btn-danger"
-                (sqxConfirmClick)="revoke()"
-                confirmTitle="Revoke client" 
-                confirmText="Do you really want to revoke the client?">
-                <i class="icon-bin2"></i>
-            </button>
+            <div class="col-auto">
+                <button type="button" class="btn btn-primary" (click)="connect()">Connect</button>
+            </div>
+            <div class="col-auto cell-actions no-padding">
+                <button type="button" class="btn btn-text-danger"
+                    (sqxConfirmClick)="revoke()"
+                    confirmTitle="Revoke client" 
+                    confirmText="Do you really want to revoke the client?">
+                    <i class="icon-bin2"></i>
+                </button>
+            </div>
         </div>
     </div>
-    <div class="row no-gutters form-group">
-        <div class="col-4 col-form-label">
-            Client Id:
-        </div>
-        <div class="col">
-            <input readonly class="form-control" value="{{appsState.appName}}:{{client.id}}" #inputName />
-        </div>
-        <div class="col col-auto cell-actions">
-            <button type="button" class="btn btn-primary btn-link" [sqxCopy]="inputName">
-                <i class="icon-copy"></i>
-            </button>
-        </div>
-    </div>
-    <div class="row no-gutters form-group">
-        <div class="col-4 col-form-label">
-            Client Secret:
-        </div>
-        <div class="col">
-            <input readonly class="form-control" [attr.value]="client.secret" #inputSecret />
-        </div>
-        <div class="col col-auto cell-actions">
-            <button type="button" class="btn btn-primary btn-link" [sqxCopy]="inputSecret">
-                <i class="icon-copy"></i>
-            </button>
-        </div>
-    </div>
-    <div class="row no-gutters">
-        <div class="col-4 col-form-label">
-            Permission:
-        </div>
-        <div class="col">
-            <select class="form-control" [ngModel]="client.permission" (ngModelChange)="update($event)">
-                <option *ngFor="let permission of clientPermissions" [ngValue]="permission">{{permission}}</option>
-            </select>
-        </div>
-        <div class="col col-auto cell-actions">
+    <div class="card-body">
+        <div class="container">
+            <div class="form-group row">
+                <label class="col-3 col-form-label">
+                    Client Id
+                </label>
+                <div class="col cell-input">
+                    <input readonly class="form-control" value="{{appsState.appName}}:{{client.id}}" #inputName />
+                </div>
+                <div class="col-auto cell-actions no-padding">
+                    <button type="button" class="btn btn-text" [sqxCopy]="inputName">
+                        <i class="icon-copy"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="form-group row">
+                <label class="col-3 col-form-label">
+                    Client Secret
+                </label>
+                <div class="col cell-input">
+                    <input readonly class="form-control" [attr.value]="client.secret" #inputSecret />
+                </div>
+                <div class="col-auto cell-actions no-padding">
+                    <button type="button" class="btn btn-text" [sqxCopy]="inputSecret">
+                        <i class="icon-copy"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="form-group row">
+                <label class="col-3 col-form-label">
+                    Role
+                </label>
+                <div class="col cell-input">
+                    <select class="form-control" [ngModel]="client.role" (ngModelChange)="update($event)">
+                        <option *ngFor="let role of clientRoles" [ngValue]="role.name">{{role.name}}</option>
+                    </select>
+                </div>
+                <div class="col-auto cell-actions"></div>
+            </div>
         </div>
     </div>
 </div>
 
-<sqx-modal-dialog *sqxModalView="tokenDialog;onRoot:true" (closed)="tokenDialog.hide()">
+<sqx-modal-dialog *sqxModalView="connectDialog;onRoot:true" large="true" (closed)="connectDialog.hide()">
     <ng-container title>
-        Access token
+        Connect
     </ng-container>
 
     <ng-container content>
-        <textarea readonly class="form-control access-token">{{token.tokenType}} {{token.accessToken}}</textarea>
+        <div class="help">
+            <h2>How to connect to this client</h2>
+    
+            <h3>Using HTTP</h3>
+    
+            <p>
+                1. Make the following request to get an access token. It will be valid for 30 days.
+        
+                <sqx-code>{{connectHttpText}}</sqx-code>
+            </p>
+    
+            <p>
+                2. Add the bearer token as authorization header to all requests:
+    
+                <sqx-code>Authorization: Bearer [YOUR_TOKEN]</sqx-code>
+            </p>
+
+            <p>
+                Use the following token for testing
+
+                <sqx-code>{{connectToken?.accessToken}}</sqx-code>
+            </p>
+    
+            <h3>Using the command line interface (CLI)</h3>
+    
+            <p>
+                Download the CLI here: <a href="https://github.com/Squidex/squidex-samples/releases" sqxExternalLink>CLI Releases (Linux, OS X, Windows)</a>
+            </p>
+    
+            <p>
+                Connect with windows:
+
+                <sqx-code>{{connectCLIWinText}}</sqx-code>
+            </p>
+    
+            <p>
+                Connect with Linux / OS X
+
+                <sqx-code>{{connectCLINixText}}</sqx-code>
+            </p>
+    
+            <h3>Using the C# Client Library</h3>
+
+            <p>
+                Get the nuget library from <a href="https://www.nuget.org/packages/Squidex.ClientLibrary/" sqxExternalLink>nuget.org</a>
+            </p>
+    
+            <p>
+                Create a client manager
+
+                <sqx-code>{{connectLibraryText}}</sqx-code>
+            </p>
+        </div>
     </ng-container>
 </sqx-modal-dialog>

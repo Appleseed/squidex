@@ -11,12 +11,18 @@ using System.Collections.Generic;
 using System.IO;
 using FakeItEasy;
 using Orleans.Serialization;
+using Squidex.Infrastructure.TestHelpers;
 using Xunit;
 
 namespace Squidex.Infrastructure.Orleans
 {
     public class JsonExternalSerializerTests
     {
+        public JsonExternalSerializerTests()
+        {
+            J.DefaultSerializer = JsonHelper.DefaultSerializer;
+        }
+
         [Fact]
         public void Should_not_copy_null()
         {
@@ -56,7 +62,7 @@ namespace Squidex.Infrastructure.Orleans
             SerializeAndDeserialize(ArrayOfLength(8000), Assert.Equal);
         }
 
-        private void SerializeAndDeserialize<T>(T value, Action<T, T> equals) where T : class
+        private static void SerializeAndDeserialize<T>(T value, Action<T, T> equals) where T : class
         {
             var buffer = new MemoryStream();
 
@@ -97,7 +103,7 @@ namespace Squidex.Infrastructure.Orleans
             return new SerializationContext(null) { StreamWriter = writer };
         }
 
-        private List<int> ArrayOfLength(int length)
+        private static List<int> ArrayOfLength(int length)
         {
             var result = new List<int>();
 

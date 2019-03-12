@@ -64,9 +64,9 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards
             var command = new CreateSchema
             {
                 AppId = appId,
-                Fields = new List<CreateSchemaField>
+                Fields = new List<UpsertSchemaField>
                 {
-                    new CreateSchemaField
+                    new UpsertSchemaField
                     {
                         Name = "invalid name",
                         Properties = new StringFieldProperties(),
@@ -87,9 +87,9 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards
             var command = new CreateSchema
             {
                 AppId = appId,
-                Fields = new List<CreateSchemaField>
+                Fields = new List<UpsertSchemaField>
                 {
-                    new CreateSchemaField
+                    new UpsertSchemaField
                     {
                         Name = "field1",
                         Properties = null,
@@ -110,9 +110,9 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards
             var command = new CreateSchema
             {
                 AppId = appId,
-                Fields = new List<CreateSchemaField>
+                Fields = new List<UpsertSchemaField>
                 {
-                    new CreateSchemaField
+                    new UpsertSchemaField
                     {
                         Name = "field1",
                         Properties = new StringFieldProperties { MinLength = 10, MaxLength = 5 },
@@ -123,7 +123,7 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards
             };
 
             return ValidationAssert.ThrowsAsync(() => GuardSchema.CanCreate(command, appProvider),
-                new ValidationError("Max length must be greater than min length.",
+                new ValidationError("Max length must be greater or equal to min length.",
                     "Fields[1].Properties.MinLength",
                     "Fields[1].Properties.MaxLength"));
         }
@@ -134,9 +134,9 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards
             var command = new CreateSchema
             {
                 AppId = appId,
-                Fields = new List<CreateSchemaField>
+                Fields = new List<UpsertSchemaField>
                 {
-                    new CreateSchemaField
+                    new UpsertSchemaField
                     {
                         Name = "field1",
                         Properties = new StringFieldProperties(),
@@ -147,7 +147,7 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards
             };
 
             return ValidationAssert.ThrowsAsync(() => GuardSchema.CanCreate(command, appProvider),
-                new ValidationError("Field partitioning is not valid.",
+                new ValidationError("Partitioning is not a valid value.",
                     "Fields[1].Partitioning"));
         }
 
@@ -157,15 +157,15 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards
             var command = new CreateSchema
             {
                 AppId = appId,
-                Fields = new List<CreateSchemaField>
+                Fields = new List<UpsertSchemaField>
                 {
-                    new CreateSchemaField
+                    new UpsertSchemaField
                     {
                         Name = "field1",
                         Properties = new StringFieldProperties(),
                         Partitioning = Partitioning.Invariant.Key
                     },
-                    new CreateSchemaField
+                    new UpsertSchemaField
                     {
                         Name = "field1",
                         Properties = new StringFieldProperties(),
@@ -186,16 +186,16 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards
             var command = new CreateSchema
             {
                 AppId = appId,
-                Fields = new List<CreateSchemaField>
+                Fields = new List<UpsertSchemaField>
                 {
-                    new CreateSchemaField
+                    new UpsertSchemaField
                     {
                         Name = "array",
                         Properties = new ArrayFieldProperties(),
                         Partitioning = Partitioning.Invariant.Key,
-                        Nested = new List<CreateSchemaNestedField>
+                        Nested = new List<UpsertSchemaNestedField>
                         {
-                            new CreateSchemaNestedField
+                            new UpsertSchemaNestedField
                             {
                                 Name = "invalid name",
                                 Properties = new StringFieldProperties()
@@ -217,16 +217,16 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards
             var command = new CreateSchema
             {
                 AppId = appId,
-                Fields = new List<CreateSchemaField>
+                Fields = new List<UpsertSchemaField>
                 {
-                    new CreateSchemaField
+                    new UpsertSchemaField
                     {
                         Name = "array",
                         Properties = new ArrayFieldProperties(),
                         Partitioning = Partitioning.Invariant.Key,
-                        Nested = new List<CreateSchemaNestedField>
+                        Nested = new List<UpsertSchemaNestedField>
                         {
-                            new CreateSchemaNestedField
+                            new UpsertSchemaNestedField
                             {
                                 Name = "nested1",
                                 Properties = null
@@ -248,16 +248,16 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards
             var command = new CreateSchema
             {
                 AppId = appId,
-                Fields = new List<CreateSchemaField>
+                Fields = new List<UpsertSchemaField>
                 {
-                    new CreateSchemaField
+                    new UpsertSchemaField
                     {
                         Name = "array",
                         Properties = new ArrayFieldProperties(),
                         Partitioning = Partitioning.Invariant.Key,
-                        Nested = new List<CreateSchemaNestedField>
+                        Nested = new List<UpsertSchemaNestedField>
                         {
-                            new CreateSchemaNestedField
+                            new UpsertSchemaNestedField
                             {
                                 Name = "nested1",
                                 Properties = new ArrayFieldProperties()
@@ -279,16 +279,16 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards
             var command = new CreateSchema
             {
                 AppId = appId,
-                Fields = new List<CreateSchemaField>
+                Fields = new List<UpsertSchemaField>
                 {
-                    new CreateSchemaField
+                    new UpsertSchemaField
                     {
                         Name = "array",
                         Properties = new ArrayFieldProperties(),
                         Partitioning = Partitioning.Invariant.Key,
-                        Nested = new List<CreateSchemaNestedField>
+                        Nested = new List<UpsertSchemaNestedField>
                         {
-                            new CreateSchemaNestedField
+                            new UpsertSchemaNestedField
                             {
                                 Name = "nested1",
                                 Properties = new StringFieldProperties { MinLength = 10, MaxLength = 5 }
@@ -300,7 +300,7 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards
             };
 
             return ValidationAssert.ThrowsAsync(() => GuardSchema.CanCreate(command, appProvider),
-                new ValidationError("Max length must be greater than min length.",
+                new ValidationError("Max length must be greater or equal to min length.",
                     "Fields[1].Nested[1].Properties.MinLength",
                     "Fields[1].Nested[1].Properties.MaxLength"));
         }
@@ -311,21 +311,21 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards
             var command = new CreateSchema
             {
                 AppId = appId,
-                Fields = new List<CreateSchemaField>
+                Fields = new List<UpsertSchemaField>
                 {
-                    new CreateSchemaField
+                    new UpsertSchemaField
                     {
                         Name = "array",
                         Properties = new ArrayFieldProperties(),
                         Partitioning = Partitioning.Invariant.Key,
-                        Nested = new List<CreateSchemaNestedField>
+                        Nested = new List<UpsertSchemaNestedField>
                         {
-                            new CreateSchemaNestedField
+                            new UpsertSchemaNestedField
                             {
                                 Name = "nested1",
                                 Properties = new StringFieldProperties()
                             },
-                            new CreateSchemaNestedField
+                            new UpsertSchemaNestedField
                             {
                                 Name = "nested1",
                                 Properties = new StringFieldProperties()
@@ -347,33 +347,33 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards
             var command = new CreateSchema
             {
                 AppId = appId,
-                Fields = new List<CreateSchemaField>
+                Fields = new List<UpsertSchemaField>
                 {
-                    new CreateSchemaField
+                    new UpsertSchemaField
                     {
                         Name = "field1",
                         Properties = ValidProperties(),
-                        Partitioning = "invariant"
+                        Partitioning = Partitioning.Invariant.Key
                     },
-                    new CreateSchemaField
+                    new UpsertSchemaField
                     {
                         Name = "field2",
                         Properties = ValidProperties(),
-                        Partitioning = "invariant"
+                        Partitioning = Partitioning.Invariant.Key
                     },
-                    new CreateSchemaField
+                    new UpsertSchemaField
                     {
                         Name = "field3",
                         Properties = new ArrayFieldProperties(),
-                        Partitioning = "invariant",
-                        Nested = new List<CreateSchemaNestedField>
+                        Partitioning = Partitioning.Invariant.Key,
+                        Nested = new List<UpsertSchemaNestedField>
                         {
-                            new CreateSchemaNestedField
+                            new UpsertSchemaNestedField
                             {
                                 Name = "nested1",
                                 Properties = ValidProperties()
                             },
-                            new CreateSchemaNestedField
+                            new UpsertSchemaNestedField
                             {
                                 Name = "nested2",
                                 Properties = ValidProperties()
@@ -467,6 +467,23 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards
         }
 
         [Fact]
+        public void CanConfigurePreviewUrls_should_throw_exception_if_preview_urls_null()
+        {
+            var command = new ConfigurePreviewUrls { PreviewUrls = null };
+
+            ValidationAssert.Throws(() => GuardSchema.CanConfigurePreviewUrls(command),
+                new ValidationError("Preview Urls is required.", "PreviewUrls"));
+        }
+
+        [Fact]
+        public void CanConfigurePreviewUrls_should_not_throw_exception_if_valid()
+        {
+            var command = new ConfigurePreviewUrls { PreviewUrls = new Dictionary<string, string>() };
+
+            GuardSchema.CanConfigurePreviewUrls(command);
+        }
+
+        [Fact]
         public void CanChangeCategory_should_not_throw_exception()
         {
             var command = new ChangeCategory();
@@ -485,11 +502,6 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards
         private static StringFieldProperties ValidProperties()
         {
             return new StringFieldProperties { MinLength = 10, MaxLength = 20 };
-        }
-
-        private static StringFieldProperties InvalidProperties()
-        {
-            return new StringFieldProperties { MinLength = 20, MaxLength = 10 };
         }
     }
 }

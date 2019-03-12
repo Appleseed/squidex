@@ -22,16 +22,24 @@ namespace Squidex.Pipeline
         {
             var clientId = principal.FindFirst(OpenIdClaims.ClientId)?.Value;
 
-            var clientIdParts = clientId?.Split(':');
+            return clientId?.GetClientParts().ClientId;
+        }
 
-            if (clientIdParts?.Length != 2)
+        public static (string App, string ClientId) GetClientParts(this string clientId)
+        {
+            var parts = clientId.Split(':', '~');
+
+            if (parts.Length == 1)
             {
-                return null;
+                return (null, parts[0]);
             }
 
-            clientId = clientIdParts[1];
+            if (parts.Length == 2)
+            {
+                return (parts[0], parts[1]);
+            }
 
-            return clientId;
+            return (null, null);
         }
     }
 }

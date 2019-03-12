@@ -5,15 +5,16 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { HttpClient, HttpEventType, HttpHeaders, HttpRequest, HttpResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpEventType, HttpHeaders, HttpRequest, HttpResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
-import { filter, map, tap } from 'rxjs/operators';
+import { Observable, throwError } from 'rxjs';
+import { catchError, filter, map, tap } from 'rxjs/operators';
 
 import {
     AnalyticsService,
     ApiUrlConfig,
     DateTime,
+    ErrorDto,
     HTTP,
     Model,
     pretifyError,
@@ -32,6 +33,10 @@ export class AssetsDto extends Model {
 }
 
 export class AssetDto extends Model {
+    public get canPreview() {
+        return this.isImage || (this.mimeType === 'image/svg+xml' && this.fileSize < 100 * 1024);
+    }
+
     constructor(
         public readonly id: string,
         public readonly createdBy: string,
@@ -123,8 +128,8 @@ export class AssetsService {
     public getTags(appName: string): Observable<{ [name: string]: number }> {
         const url = this.apiUrl.buildUrl(`api/apps/${appName}/assets/tags`);
 
-        return this.http.get(url).pipe(
-                map(response => <any>response));
+        return HTTP.getVersioned(this.http, url).pipe(
+                map(response => <any>response.payload.body));
     }
 
     public getAssets(appName: string, take: number, skip: number, query?: string, tags?: string[], ids?: string[]): Observable<AssetsDto> {
@@ -195,9 +200,7 @@ export class AssetsService {
     public uploadFile(appName: string, file: File, user: string, now: DateTime): Observable<number | AssetDto> {
         const url = this.apiUrl.buildUrl(`api/apps/${appName}/assets`);
 
-        const req = new HttpRequest('POST', url, getFormData(file), {
-            reportProgress: true
-        });
+        const req = new HttpRequest('POST', url, getFormData(file), { reportProgress: true });
 
         return this.http.request<any>(req).pipe(
                 filter(event =>
@@ -237,7 +240,14 @@ export class AssetsService {
                         throw 'Invalid';
                     }
                 }),
-                tap(dto => {
+                catchError((error: any) => {
+                    if (Types.is(error, HttpErrorResponse) && error.status === 413) {
+                        return throwError(new ErrorDto(413, 'Asset is too big.'));
+                    } else {
+                        return throwError(error);
+                    }
+                }),
+                tap(() => {
                     this.analytics.trackEvent('Asset', 'Uploaded', appName);
                 }),
                 pretifyError('Failed to upload asset. Please reload.'));
@@ -276,12 +286,7 @@ export class AssetsService {
     public replaceFile(appName: string, id: string, file: File, version: Version): Observable<number | Versioned<AssetReplacedDto>> {
         const url = this.apiUrl.buildUrl(`api/apps/${appName}/assets/${id}/content`);
 
-        const req = new HttpRequest('PUT', url, getFormData(file), {
-            headers: new HttpHeaders({
-                'If-Match': version.value
-            }),
-            reportProgress: true
-        });
+        const req = new HttpRequest('PUT', url, getFormData(file), { headers: new HttpHeaders().set('If-Match', version.value), reportProgress: true });
 
         return this.http.request(req).pipe(
                 filter(event =>
@@ -306,6 +311,13 @@ export class AssetsService {
                         return new Versioned(new Version(event.headers.get('etag')!), replaced);
                     } else {
                         throw 'Invalid';
+                    }
+                }),
+                catchError(error => {
+                    if (Types.is(error, HttpErrorResponse) && error.status === 413) {
+                        return throwError(new ErrorDto(413, 'Asset is too big.'));
+                    } else {
+                        return throwError(error);
                     }
                 }),
                 tap(() => {

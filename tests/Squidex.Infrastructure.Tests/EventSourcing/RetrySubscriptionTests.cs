@@ -49,10 +49,10 @@ namespace Squidex.Infrastructure.EventSourcing
             await sut.StopAsync();
 
             A.CallTo(() => eventSubscription.StopAsync())
-                .MustHaveHappened(Repeated.Exactly.Twice);
+                .MustHaveHappened(2, Times.Exactly);
 
             A.CallTo(() => eventStore.CreateSubscription(A<IEventSubscriber>.Ignored, A<string>.Ignored, A<string>.Ignored))
-                .MustHaveHappened(Repeated.Exactly.Twice);
+                .MustHaveHappened(2, Times.Exactly);
 
             A.CallTo(() => eventSubscriber.OnErrorAsync(A<IEventSubscription>.Ignored, A<Exception>.Ignored))
                 .MustNotHaveHappened();
@@ -90,7 +90,7 @@ namespace Squidex.Infrastructure.EventSourcing
         [Fact]
         public async Task Should_forward_event_from_inner_subscription()
         {
-            var ev = new StoredEvent("Stream", "1", 2, new EventData());
+            var ev = new StoredEvent("Stream", "1", 2, new EventData("Type", new EnvelopeHeaders(), "Payload"));
 
             await OnEventAsync(eventSubscription, ev);
             await sut.StopAsync();
@@ -102,7 +102,7 @@ namespace Squidex.Infrastructure.EventSourcing
         [Fact]
         public async Task Should_not_forward_event_when_message_is_from_another_subscription()
         {
-            var ev = new StoredEvent("Stream", "1", 2, new EventData());
+            var ev = new StoredEvent("Stream", "1", 2, new EventData("Type", new EnvelopeHeaders(), "Payload"));
 
             await OnEventAsync(A.Fake<IEventSubscription>(), ev);
             await sut.StopAsync();

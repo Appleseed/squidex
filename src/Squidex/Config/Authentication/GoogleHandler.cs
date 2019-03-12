@@ -5,7 +5,6 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
@@ -26,10 +25,11 @@ namespace Squidex.Config.Authentication
 
         public override Task CreatingTicket(OAuthCreatingTicketContext context)
         {
-            var displayNameClaim = context.Identity.Claims.FirstOrDefault(x => x.Type == ClaimTypes.Name);
-            if (displayNameClaim != null)
+            var nameClaim = context.Identity.FindFirst(ClaimTypes.Name)?.Value;
+
+            if (!string.IsNullOrWhiteSpace(nameClaim))
             {
-                context.Identity.SetDisplayName(displayNameClaim.Value);
+                context.Identity.SetDisplayName(nameClaim);
             }
 
             var pictureUrl = context.User?.Value<string>("picture");

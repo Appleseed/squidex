@@ -8,6 +8,7 @@
 using System;
 using Microsoft.Extensions.Options;
 using Squidex.Config;
+using Squidex.Domain.Apps.Core.ConvertContent;
 using Squidex.Domain.Apps.Core.HandleRules;
 using Squidex.Domain.Apps.Entities.Apps;
 using Squidex.Domain.Apps.Entities.Assets;
@@ -19,7 +20,7 @@ using Squidex.Infrastructure.Assets;
 
 namespace Squidex.Pipeline
 {
-    public sealed class UrlGenerator : IGraphQLUrlGenerator, IRuleUrlGenerator
+    public sealed class UrlGenerator : IGraphQLUrlGenerator, IRuleUrlGenerator, IAssetUrlGenerator
     {
         private readonly IAssetStore assetStore;
         private readonly MyUrlsOptions urlsOptions;
@@ -44,6 +45,11 @@ namespace Squidex.Pipeline
             return urlsOptions.BuildUrl($"api/assets/{asset.Id}?version={asset.Version}&width=100&mode=Max");
         }
 
+        public string GenerateUrl(string assetId)
+        {
+            return urlsOptions.BuildUrl($"api/assets/{assetId}");
+        }
+
         public string GenerateAssetUrl(IAppEntity app, IAssetEntity asset)
         {
             return urlsOptions.BuildUrl($"api/assets/{asset.Id}?version={asset.Version}");
@@ -51,7 +57,7 @@ namespace Squidex.Pipeline
 
         public string GenerateContentUrl(IAppEntity app, ISchemaEntity schema, IContentEntity content)
         {
-            return urlsOptions.BuildUrl($"api/content/{app.Name}/{schema.Name}/{content.Id}");
+            return urlsOptions.BuildUrl($"api/content/{app.Name}/{schema.SchemaDef.Name}/{content.Id}");
         }
 
         public string GenerateContentUIUrl(NamedId<Guid> appId, NamedId<Guid> schemaId, Guid contentId)
@@ -61,7 +67,7 @@ namespace Squidex.Pipeline
 
         public string GenerateAssetSourceUrl(IAppEntity app, IAssetEntity asset)
         {
-            return assetStore.GenerateSourceUrl(asset.Id.ToString(), asset.FileVersion, null);
+            return assetStore.GeneratePublicUrl(asset.Id.ToString(), asset.FileVersion, null);
         }
     }
 }

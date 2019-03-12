@@ -3,6 +3,10 @@
 
 $focus-color: #b3d3ff;
 
+:host {
+    text-align: left;
+}
+
 .form-control {
     & {
         cursor: text;
@@ -15,11 +19,26 @@ $focus-color: #b3d3ff;
     &.disabled,
     &:disabled {
         background: $color-input-disabled;
-    } 
+    }
 
     &.focus {
         @include box-shadow-raw(0 0 0 .2rem rgba(51, 137, 255, .25));
         border-color: $focus-color;
+    }
+
+    &.single-line {
+        overflow-x: hidden;
+        overflow-y: hidden;
+        white-space: nowrap;
+    }
+}
+
+div {
+    &.form-control {
+        height: auto;
+        text-align: left;
+        text-decoration: none;
+        position: relative;
     }
 }
 
@@ -28,8 +47,9 @@ $focus-color: #b3d3ff;
         padding: 0;
         border: 0;
         background: transparent;
-        min-width: 40%;
+        min-width: 50px;
         max-width: 100%;
+        height: auto !important;
     }
 
     &:focus,
@@ -52,12 +72,13 @@ $focus-color: #b3d3ff;
         @include border-radius(10px);
         color: $color-dark-foreground;
         cursor: default;
-        padding: 0 .6rem;
+        padding: 1px .6rem;
         background: $color-theme-blue;
         border: 0;
         font-size: .8rem;
         font-weight: normal;
         margin: 0 2px 2px 0;
+        white-space: nowrap;
     }
 
     &,

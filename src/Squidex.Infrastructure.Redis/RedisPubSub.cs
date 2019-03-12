@@ -7,7 +7,11 @@
 
 using System;
 using System.Collections.Concurrent;
+using System.Threading;
+using System.Threading.Tasks;
+using Squidex.Infrastructure.Json;
 using Squidex.Infrastructure.Log;
+using Squidex.Infrastructure.Tasks;
 using StackExchange.Redis;
 
 namespace Squidex.Infrastructure
@@ -16,11 +20,13 @@ namespace Squidex.Infrastructure
     {
         private readonly ConcurrentDictionary<string, object> subscriptions = new ConcurrentDictionary<string, object>();
         private readonly Lazy<IConnectionMultiplexer> redisClient;
+        private readonly IJsonSerializer serializer;
         private readonly Lazy<ISubscriber> redisSubscriber;
         private readonly ISemanticLog log;
 
-        public RedisPubSub(Lazy<IConnectionMultiplexer> redis, ISemanticLog log)
+        public RedisPubSub(Lazy<IConnectionMultiplexer> redis, IJsonSerializer serializer, ISemanticLog log)
         {
+            Guard.NotNull(serializer, nameof(serializer));
             Guard.NotNull(redis, nameof(redis));
             Guard.NotNull(log, nameof(log));
 
@@ -28,13 +34,17 @@ namespace Squidex.Infrastructure
 
             redisClient = redis;
             redisSubscriber = new Lazy<ISubscriber>(() => redis.Value.GetSubscriber());
+
+            this.serializer = serializer;
         }
 
-        public void Initialize()
+        public Task InitializeAsync(CancellationToken ct = default)
         {
             try
             {
                 redisClient.Value.GetStatus();
+
+                return TaskHelper.Done;
             }
             catch (Exception ex)
             {
@@ -56,7 +66,7 @@ namespace Squidex.Infrastructure
         {
             var typeName = typeof(T).FullName;
 
-            return (RedisSubscription<T>)subscriptions.GetOrAdd(typeName, this, (k, c) => new RedisSubscription<T>(c.redisSubscriber.Value, k, c.log));
+            return (RedisSubscription<T>)subscriptions.GetOrAdd(typeName, this, (k, c) => new RedisSubscription<T>(c.redisSubscriber.Value, serializer, k, c.log));
         }
     }
 }

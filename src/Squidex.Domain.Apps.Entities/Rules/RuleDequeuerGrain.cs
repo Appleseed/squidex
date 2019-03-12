@@ -45,7 +45,7 @@ namespace Squidex.Domain.Apps.Entities.Rules
             this.log = log;
 
             requestBlock =
-                new PartitionedActionBlock<IRuleEventEntity>(HandleAsync, x => x.Job.AggregateId.GetHashCode(),
+                new PartitionedActionBlock<IRuleEventEntity>(HandleAsync, x => x.Job.ExecutionPartition,
                     new ExecutionDataflowBlockOptions { MaxDegreeOfParallelism = 32, BoundedCapacity = 32 });
         }
 
@@ -113,7 +113,7 @@ namespace Squidex.Domain.Apps.Entities.Rules
             }
             finally
             {
-                executing.TryRemove(@event.Id, out var value);
+                executing.TryRemove(@event.Id, out _);
             }
         }
 

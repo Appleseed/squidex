@@ -16,8 +16,6 @@ namespace Squidex.Infrastructure.Assets
 {
     public class AzureBlobAssetStore : IAssetStore, IInitializable
     {
-        private const string AssetVersion = "AssetVersion";
-        private const string AssetId = "AssetId";
         private readonly string containerName;
         private readonly string connectionString;
         private CloudBlobContainer blobContainer;
@@ -31,7 +29,7 @@ namespace Squidex.Infrastructure.Assets
             this.containerName = containerName;
         }
 
-        public void Initialize()
+        public async Task InitializeAsync(CancellationToken ct = default)
         {
             try
             {
@@ -40,7 +38,7 @@ namespace Squidex.Infrastructure.Assets
                 var blobClient = storageAccount.CreateCloudBlobClient();
                 var blobReference = blobClient.GetContainerReference(containerName);
 
-                blobReference.CreateIfNotExistsAsync().Wait();
+                await blobReference.CreateIfNotExistsAsync();
 
                 blobContainer = blobReference;
             }
@@ -50,14 +48,20 @@ namespace Squidex.Infrastructure.Assets
             }
         }
 
-        public string GenerateSourceUrl(string id, long version, string suffix)
+        public string GeneratePublicUrl(string id, long version, string suffix)
         {
-            var blobName = GetObjectName(id, version, suffix);
+            if (blobContainer.Properties.PublicAccess != BlobContainerPublicAccessType.Blob)
+            {
+                var sourceName = GetObjectName(id, version, suffix);
+                var sourceBlob = blobContainer.GetBlockBlobReference(sourceName);
 
-            return new Uri(blobContainer.StorageUri.PrimaryUri, $"/{containerName}/{blobName}").ToString();
+                return sourceBlob.Uri.ToString();
+            }
+
+            return null;
         }
 
-        public async Task CopyAsync(string sourceFileName, string id, long version, string suffix, CancellationToken ct = default(CancellationToken))
+        public async Task CopyAsync(string sourceFileName, string id, long version, string suffix, CancellationToken ct = default)
         {
             var targetName = GetObjectName(id, version, suffix);
             var targetBlob = blobContainer.GetBlobReference(targetName);
@@ -72,7 +76,7 @@ namespace Squidex.Infrastructure.Assets
                 {
                     ct.ThrowIfCancellationRequested();
 
-                    await Task.Delay(50);
+                    await Task.Delay(50, ct);
                     await targetBlob.FetchAttributesAsync(null, null, null, ct);
                 }
 
@@ -91,13 +95,14 @@ namespace Squidex.Infrastructure.Assets
             }
         }
 
-        public async Task DownloadAsync(string id, long version, string suffix, Stream stream, CancellationToken ct = default(CancellationToken))
+        public async Task DownloadAsync(string id, long version, string suffix, Stream stream, CancellationToken ct = default)
         {
-            var blob = blobContainer.GetBlockBlobReference(GetObjectName(id, version, suffix));
+            var sourceName = GetObjectName(id, version, suffix);
+            var sourceBlob = blobContainer.GetBlockBlobReference(sourceName);
 
             try
             {
-                await blob.DownloadToStreamAsync(stream, null, null, null, ct);
+                await sourceBlob.DownloadToStreamAsync(stream, null, null, null, ct);
             }
             catch (StorageException ex) when (ex.RequestInformation.HttpStatusCode == 404)
             {
@@ -105,12 +110,12 @@ namespace Squidex.Infrastructure.Assets
             }
         }
 
-        public Task UploadAsync(string id, long version, string suffix, Stream stream, CancellationToken ct = default(CancellationToken))
+        public Task UploadAsync(string id, long version, string suffix, Stream stream, CancellationToken ct = default)
         {
             return UploadCoreAsync(GetObjectName(id, version, suffix), stream, ct);
         }
 
-        public Task UploadAsync(string fileName, Stream stream, CancellationToken ct = default(CancellationToken))
+        public Task UploadAsync(string fileName, Stream stream, CancellationToken ct = default)
         {
             return UploadCoreAsync(fileName, stream, ct);
         }
@@ -132,7 +137,7 @@ namespace Squidex.Infrastructure.Assets
             return blob.DeleteIfExistsAsync();
         }
 
-        private async Task UploadCoreAsync(string blobName, Stream stream, CancellationToken ct)
+        private async Task UploadCoreAsync(string blobName, Stream stream, CancellationToken ct = default)
         {
             try
             {

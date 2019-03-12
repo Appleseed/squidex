@@ -9,22 +9,19 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using NSwag.Annotations;
+using Microsoft.Net.Http.Headers;
 using Squidex.Areas.Api.Controllers.Apps.Models;
 using Squidex.Domain.Apps.Entities.Apps.Commands;
 using Squidex.Infrastructure.Commands;
 using Squidex.Pipeline;
+using Squidex.Shared;
 
 namespace Squidex.Areas.Api.Controllers.Apps
 {
     /// <summary>
     /// Manages and configures app patterns.
     /// </summary>
-    [ApiAuthorize]
-    [MustBeAppDeveloper]
-    [ApiExceptionFilter]
-    [AppApi]
-    [SwaggerTag(nameof(Apps))]
+    [ApiExplorerSettings(GroupName = nameof(Apps))]
     public sealed class AppPatternsController : ApiController
     {
         public AppPatternsController(ICommandBus commandBus)
@@ -46,18 +43,19 @@ namespace Squidex.Areas.Api.Controllers.Apps
         [HttpGet]
         [Route("apps/{app}/patterns/")]
         [ProducesResponseType(typeof(AppPatternDto[]), 200)]
+        [ApiPermission(Permissions.AppPatternsRead)]
         [ApiCosts(0)]
         public IActionResult GetPatterns(string app)
         {
-            var response = App.Patterns.Select(AppPatternDto.FromKvp).OrderBy(x => x.Name).ToList();
+            var response = App.Patterns.Select(AppPatternDto.FromKvp).OrderBy(x => x.Name).ToArray();
 
-            Response.Headers["ETag"] = App.Version.ToString();
+            Response.Headers[HeaderNames.ETag] = App.Version.ToString();
 
             return Ok(response);
         }
 
         /// <summary>
-        /// Create a new app patterm.
+        /// Create a new app pattern.
         /// </summary>
         /// <param name="app">The name of the app.</param>
         /// <param name="request">Pattern to be added to the app.</param>
@@ -69,6 +67,7 @@ namespace Squidex.Areas.Api.Controllers.Apps
         [HttpPost]
         [Route("apps/{app}/patterns/")]
         [ProducesResponseType(typeof(AppPatternDto), 201)]
+        [ApiPermission(Permissions.AppPatternsCreate)]
         [ApiCosts(1)]
         public async Task<IActionResult> PostPattern(string app, [FromBody] UpdatePatternDto request)
         {
@@ -82,7 +81,7 @@ namespace Squidex.Areas.Api.Controllers.Apps
         }
 
         /// <summary>
-        /// Update an existing app patterm.
+        /// Update an existing app pattern.
         /// </summary>
         /// <param name="app">The name of the app.</param>
         /// <param name="id">The id of the pattern to be updated.</param>
@@ -95,6 +94,7 @@ namespace Squidex.Areas.Api.Controllers.Apps
         [HttpPut]
         [Route("apps/{app}/patterns/{id}/")]
         [ProducesResponseType(typeof(AppPatternDto), 201)]
+        [ApiPermission(Permissions.AppPatternsUpdate)]
         [ApiCosts(1)]
         public async Task<IActionResult> UpdatePattern(string app, Guid id, [FromBody] UpdatePatternDto request)
         {
@@ -104,7 +104,7 @@ namespace Squidex.Areas.Api.Controllers.Apps
         }
 
         /// <summary>
-        /// Revoke an app client.
+        /// Delete an existing app pattern.
         /// </summary>
         /// <param name="app">The name of the app.</param>
         /// <param name="id">The id of the pattern to be deleted.</param>
@@ -117,6 +117,7 @@ namespace Squidex.Areas.Api.Controllers.Apps
         /// </remarks>
         [HttpDelete]
         [Route("apps/{app}/patterns/{id}/")]
+        [ApiPermission(Permissions.AppPatternsDelete)]
         [ApiCosts(1)]
         public async Task<IActionResult> DeletePattern(string app, Guid id)
         {

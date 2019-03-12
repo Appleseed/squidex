@@ -10,7 +10,6 @@ import { Observable, of } from 'rxjs';
 import { distinctUntilChanged, map, tap } from 'rxjs/operators';
 
 import {
-    DateTime,
     DialogService,
     ImmutableArray,
     notify,
@@ -29,15 +28,19 @@ interface Snapshot {
     selectedApp: AppDto | null;
 }
 
+function sameApp(lhs: AppDto, rhs?: AppDto): boolean {
+    return lhs === rhs || (!!lhs && !!rhs && lhs.id === rhs.id);
+}
+
 @Injectable()
 export class AppsState extends State<Snapshot> {
     public get appName() {
-        return this.snapshot.selectedApp!.name;
+        return this.snapshot.selectedApp ? this.snapshot.selectedApp.name : '';
     }
 
     public selectedApp =
         this.changes.pipe(map(s => s.selectedApp),
-            distinctUntilChanged());
+            distinctUntilChanged(sameApp));
 
     public apps =
         this.changes.pipe(map(s => s.apps),
@@ -64,16 +67,16 @@ export class AppsState extends State<Snapshot> {
 
     public load(): Observable<any> {
         return this.appsService.getApps().pipe(
-            tap(dtos => {
+            tap((dto: AppDto[]) => {
                 this.next(s => {
-                    const apps = ImmutableArray.of(dtos);
+                    const apps = ImmutableArray.of(dto);
 
                     return { ...s, apps };
                 });
             }));
     }
 
-    public create(request: CreateAppDto, now?: DateTime): Observable<AppDto> {
+    public create(request: CreateAppDto): Observable<AppDto> {
         return this.appsService.postApp(request).pipe(
             tap(dto => {
                 this.next(s => {
@@ -86,7 +89,7 @@ export class AppsState extends State<Snapshot> {
 
     public delete(name: string): Observable<any> {
         return this.appsService.deleteApp(name).pipe(
-            tap(app => {
+            tap(() => {
                 this.next(s => {
                     const apps = s.apps.filter(x => x.name !== name);
 

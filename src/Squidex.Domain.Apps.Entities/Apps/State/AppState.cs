@@ -5,7 +5,7 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using Newtonsoft.Json;
+using System.Runtime.Serialization;
 using Squidex.Domain.Apps.Core.Apps;
 using Squidex.Domain.Apps.Events;
 using Squidex.Domain.Apps.Events.Apps;
@@ -19,29 +19,34 @@ namespace Squidex.Domain.Apps.Entities.Apps.State
     [CollectionName("Apps")]
     public class AppState : DomainObjectState<AppState>, IAppEntity
     {
-        [JsonProperty]
+        [DataMember]
         public string Name { get; set; }
 
-        [JsonProperty]
+        [DataMember]
+        public Roles Roles { get; set; } = Roles.Empty;
+
+        [DataMember]
         public AppPlan Plan { get; set; }
 
-        [JsonProperty]
+        [DataMember]
         public AppClients Clients { get; set; } = AppClients.Empty;
 
-        [JsonProperty]
+        [DataMember]
         public AppPatterns Patterns { get; set; } = AppPatterns.Empty;
 
-        [JsonProperty]
+        [DataMember]
         public AppContributors Contributors { get; set; } = AppContributors.Empty;
 
-        [JsonProperty]
+        [DataMember]
         public LanguagesConfig LanguagesConfig { get; set; } = LanguagesConfig.English;
 
-        [JsonProperty]
+        [DataMember]
         public bool IsArchived { get; set; }
 
         protected void On(AppCreated @event)
         {
+            Roles = Roles.CreateDefaults(@event.Name);
+
             SimpleMapper.Map(@event, this);
         }
 
@@ -52,7 +57,7 @@ namespace Squidex.Domain.Apps.Entities.Apps.State
 
         protected void On(AppContributorAssigned @event)
         {
-            Contributors = Contributors.Assign(@event.ContributorId, @event.Permission);
+            Contributors = Contributors.Assign(@event.ContributorId, @event.Role);
         }
 
         protected void On(AppContributorRemoved @event)
@@ -67,7 +72,7 @@ namespace Squidex.Domain.Apps.Entities.Apps.State
 
         protected void On(AppClientUpdated @event)
         {
-            Clients = Clients.Update(@event.Id, @event.Permission);
+            Clients = Clients.Update(@event.Id, @event.Role);
         }
 
         protected void On(AppClientRenamed @event)
@@ -93,6 +98,21 @@ namespace Squidex.Domain.Apps.Entities.Apps.State
         protected void On(AppPatternUpdated @event)
         {
             Patterns = Patterns.Update(@event.PatternId, @event.Name, @event.Pattern, @event.Message);
+        }
+
+        protected void On(AppRoleAdded @event)
+        {
+            Roles = Roles.Add(@event.Name);
+        }
+
+        protected void On(AppRoleDeleted @event)
+        {
+            Roles = Roles.Remove(@event.Name);
+        }
+
+        protected void On(AppRoleUpdated @event)
+        {
+            Roles = Roles.Update(@event.Name, @event.Permissions.Prefix(Name));
         }
 
         protected void On(AppLanguageAdded @event)

@@ -9,8 +9,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using Squidex.Domain.Apps.Core.Schemas;
 using Xunit;
 
@@ -20,7 +18,6 @@ namespace Squidex.Domain.Apps.Core.Model.Schemas
 {
     public class SchemaTests
     {
-        private readonly JsonSerializer serializer = TestData.DefaultSerializer();
         private readonly Schema schema_0 = new Schema("my-schema");
 
         [Fact]
@@ -279,10 +276,59 @@ namespace Squidex.Domain.Apps.Core.Model.Schemas
         }
 
         [Fact]
+        public void Should_change_category()
+        {
+            var schema_1 = schema_0.ChangeCategory("Category");
+
+            Assert.Equal("Category", schema_1.Category);
+        }
+
+        [Fact]
+        public void Should_configure_scripts()
+        {
+            var scripts = new SchemaScripts
+            {
+                Query = "<query-script>"
+            };
+
+            var schema_1 = schema_0.ConfigureScripts(scripts);
+
+            Assert.Equal(scripts, schema_1.Scripts);
+
+            Assert.Equal("<query-script>", schema_1.Scripts.Query);
+        }
+
+        [Fact]
+        public void Should_configure_preview_urls()
+        {
+            var urls = new Dictionary<string, string>
+            {
+                ["web"] = "Url"
+            };
+
+            var schema_1 = schema_0.ConfigurePreviewUrls(urls);
+
+            Assert.Equal(urls, schema_1.PreviewUrls);
+
+            Assert.Equal("Url", schema_1.PreviewUrls["web"]);
+        }
+
+        [Fact]
         public void Should_serialize_and_deserialize_schema()
         {
-            var schemaSource = TestData.MixedSchema();
-            var schemaTarget = JToken.FromObject(schemaSource, serializer).ToObject<Schema>(serializer);
+            var schemaSource =
+                TestUtils.MixedSchema(true)
+                    .ChangeCategory("Category")
+                    .ConfigurePreviewUrls(new Dictionary<string, string>
+                    {
+                        ["web"] = "Url"
+                    })
+                    .ConfigureScripts(new SchemaScripts
+                    {
+                        Create = "<create-script>"
+                    });
+
+            var schemaTarget = schemaSource.SerializeAndDeserialize();
 
             schemaTarget.Should().BeEquivalentTo(schemaSource);
         }

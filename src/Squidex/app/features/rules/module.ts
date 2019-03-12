@@ -19,15 +19,21 @@ import {
     AssetChangedTriggerComponent,
     AzureQueueActionComponent,
     ContentChangedTriggerComponent,
+    DiscourseActionComponent,
     ElasticSearchActionComponent,
+    EmailActionComponent,
     FastlyActionComponent,
     MediumActionComponent,
+    PrerenderActionComponent,
+    RuleElementComponent,
     RuleEventBadgeClassPipe,
     RuleEventsPageComponent,
     RulesPageComponent,
     RuleWizardComponent,
+    SchemaChangedTriggerComponent,
     SlackActionComponent,
     TweetActionComponent,
+    UsageTriggerComponent,
     WebhookActionComponent
 } from './declarations';
 
@@ -62,15 +68,21 @@ const routes: Routes = [
         AssetChangedTriggerComponent,
         AzureQueueActionComponent,
         ContentChangedTriggerComponent,
+        DiscourseActionComponent,
+        EmailActionComponent,
         ElasticSearchActionComponent,
         FastlyActionComponent,
         MediumActionComponent,
+        PrerenderActionComponent,
+        RuleElementComponent,
         RuleEventBadgeClassPipe,
         RuleEventsPageComponent,
         RulesPageComponent,
         RuleWizardComponent,
+        SchemaChangedTriggerComponent,
         SlackActionComponent,
         TweetActionComponent,
+        UsageTriggerComponent,
         WebhookActionComponent
     ]
 })

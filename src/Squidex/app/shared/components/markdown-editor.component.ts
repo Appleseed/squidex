@@ -5,13 +5,18 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { AfterViewInit, Component, ElementRef, forwardRef, Renderer2, ViewChild } from '@angular/core';
-import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
+import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, forwardRef, Renderer2, ViewChild } from '@angular/core';
+import { NG_VALUE_ACCESSOR } from '@angular/forms';
 
 import {
+    AppsState,
     AssetDto,
+    AssetsService,
+    AuthService,
+    DateTime,
     DialogModel,
     ResourceLoaderService,
+    StatefulControlComponent,
     Types
 } from '@app/shared/internal';
 
@@ -21,20 +26,21 @@ export const SQX_MARKDOWN_EDITOR_CONTROL_VALUE_ACCESSOR: any = {
     provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => MarkdownEditorComponent), multi: true
 };
 
+interface State {
+    isFullscreen: false;
+}
+
 @Component({
     selector: 'sqx-markdown-editor',
     styleUrls: ['./markdown-editor.component.scss'],
     templateUrl: './markdown-editor.component.html',
-    providers: [SQX_MARKDOWN_EDITOR_CONTROL_VALUE_ACCESSOR]
+    providers: [SQX_MARKDOWN_EDITOR_CONTROL_VALUE_ACCESSOR],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class MarkdownEditorComponent implements ControlValueAccessor, AfterViewInit {
-    private callChange = (v: any) => { /* NOOP */ };
-    private callTouched = () => { /* NOOP */ };
+export class MarkdownEditorComponent extends StatefulControlComponent<State, string> implements AfterViewInit {
     private simplemde: any;
     private value: string;
     private isDisabled = false;
-
-    public assetsDialog = new DialogModel();
 
     @ViewChild('editor')
     public editor: ElementRef;
@@ -45,13 +51,18 @@ export class MarkdownEditorComponent implements ControlValueAccessor, AfterViewI
     @ViewChild('inner')
     public inner: ElementRef;
 
-    public isFullscreen = false;
+    public assetsDialog = new DialogModel();
 
-    constructor(
+    constructor(changeDetector: ChangeDetectorRef,
+        private readonly appsState: AppsState,
+        private readonly assetsService: AssetsService,
+        private readonly authState: AuthService,
         private readonly renderer: Renderer2,
         private readonly resourceLoader: ResourceLoaderService
     ) {
-        this.resourceLoader.loadStyle('https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.css');
+        super(changeDetector, {
+            isFullscreen: false
+        });
     }
 
     public writeValue(obj: any) {
@@ -70,19 +81,12 @@ export class MarkdownEditorComponent implements ControlValueAccessor, AfterViewI
         }
     }
 
-    public registerOnChange(fn: any) {
-        this.callChange = fn;
-    }
-
-    public registerOnTouched(fn: any) {
-        this.callTouched = fn;
-    }
-
     private showSelector = () => {
         this.assetsDialog.show();
     }
 
     public ngAfterViewInit() {
+        this.resourceLoader.loadStyle('https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.css');
         this.resourceLoader.loadScript('https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.js').then(() => {
             this.simplemde = new SimpleMDE({
                 toolbar: [
@@ -178,15 +182,17 @@ export class MarkdownEditorComponent implements ControlValueAccessor, AfterViewI
             });
 
             this.simplemde.codemirror.on('refresh', () => {
-                this.isFullscreen = this.simplemde.isFullscreenActive();
+                const isFullscreen = this.simplemde.isFullscreenActive();
 
                 let target = this.container.nativeElement;
 
-                if (this.isFullscreen) {
+                if (isFullscreen) {
                     target = document.body;
                 }
 
                 this.renderer.appendChild(target, this.inner.nativeElement);
+
+                this.next(s => ({ ...s, isFullscreen }));
             });
 
             this.simplemde.codemirror.on('blur', () => {
@@ -195,7 +201,7 @@ export class MarkdownEditorComponent implements ControlValueAccessor, AfterViewI
         });
     }
 
-    public onAssetsSelected(assets: AssetDto[]) {
+    public insertAssets(assets: AssetDto[]) {
         let content = '';
 
         for (let asset of assets) {
@@ -207,5 +213,45 @@ export class MarkdownEditorComponent implements ControlValueAccessor, AfterViewI
         }
 
         this.assetsDialog.hide();
+    }
+
+    public insertFiles(files: File[]) {
+        const doc = this.simplemde.codemirror.getDoc();
+
+        for (let file of files) {
+            this.uploadFile(doc, file);
+        }
+    }
+
+    private uploadFile(doc: any, file: File) {
+        const uploadCursor = doc.getCursor();
+        const uploadText = `![Uploading file...${new Date()}]()`;
+
+        doc.replaceSelection(uploadText);
+
+        const replaceText = (replacement: string) => {
+            const cursor = doc.getCursor();
+
+            const text = doc.getValue().replace(uploadText, replacement);
+
+            doc.setValue(text);
+
+            if (uploadCursor && uploadCursor.line === cursor.line) {
+                const offset = replacement.length - uploadText.length;
+
+                doc.setCursor({ line: cursor.line, ch: cursor.ch + offset });
+            } else {
+                doc.setCursor(cursor);
+            }
+        };
+
+        this.assetsService.uploadFile(this.appsState.appName, file, this.authState.user!.token, DateTime.now())
+            .subscribe(asset => {
+                if (Types.is(asset, AssetDto)) {
+                    replaceText(`![${asset.fileName}](${asset.url} '${asset.fileName}')`);
+                }
+            }, () => {
+                replaceText('FAILED');
+            });
     }
 }

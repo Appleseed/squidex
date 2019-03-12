@@ -5,9 +5,11 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.DependencyInjection;
 using Squidex.Config.Domain;
 using Squidex.Pipeline;
+using Squidex.Pipeline.Robots;
 
 namespace Squidex.Config.Web
 {
@@ -18,10 +20,13 @@ namespace Squidex.Config.Web
             services.AddSingletonAs<FileCallbackResultExecutor>()
                 .AsSelf();
 
-            services.AddSingletonAs<AppApiFilter>()
+            services.AddSingletonAs<ApiCostsFilter>()
                 .AsSelf();
 
-            services.AddSingletonAs<ApiCostsFilter>()
+            services.AddSingletonAs<AppResolver>()
+                .AsSelf();
+
+            services.AddSingletonAs<RobotsTxtMiddleware>()
                 .AsSelf();
 
             services.AddSingletonAs<EnforceHttpsMiddleware>()
@@ -33,7 +38,16 @@ namespace Squidex.Config.Web
             services.AddSingletonAs<RequestLogPerformanceMiddleware>()
                 .AsSelf();
 
-            services.AddMvc().AddMySerializers();
+            services.AddSingletonAs<ApiPermissionUnifier>()
+                .As<IClaimsTransformation>();
+
+            services.AddMvc(options =>
+            {
+                options.Filters.Add<ETagFilter>();
+                options.Filters.Add<AppResolver>();
+                options.Filters.Add<MeasureResultFilter>();
+            }).AddMySerializers();
+
             services.AddCors();
             services.AddRouting();
         }

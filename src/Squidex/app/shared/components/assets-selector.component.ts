@@ -5,16 +5,23 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable:prefer-for-of
-
-import { Component, EventEmitter, OnInit, Output } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, OnInit, Output } from '@angular/core';
 import { onErrorResumeNext } from 'rxjs/operators';
 
 import {
     AssetDto,
     AssetsDialogState,
-    fadeAnimation
+    fadeAnimation,
+    LocalStoreService,
+    StatefulComponent
 } from '@app/shared/internal';
+
+interface State {
+    selectedAssets: { [id: string]: AssetDto };
+    selectionCount: number;
+
+    isListView: boolean;
+}
 
 @Component({
     selector: 'sqx-assets-selector',
@@ -22,30 +29,34 @@ import {
     templateUrl: './assets-selector.component.html',
     animations: [
         fadeAnimation
-    ]
+    ],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class AssetsSelectorComponent implements OnInit {
-    public selectedAssets: { [id: string]: AssetDto } = {};
-    public selectionCount = 0;
-
+export class AssetsSelectorComponent extends StatefulComponent<State> implements OnInit {
     @Output()
     public selected = new EventEmitter<AssetDto[]>();
 
-    constructor(
-        public readonly state: AssetsDialogState
+    constructor(changeDector: ChangeDetectorRef,
+        public readonly assetsState: AssetsDialogState,
+        public readonly localStore: LocalStoreService
     ) {
+        super(changeDector, {
+            selectedAssets: {},
+            selectionCount: 0,
+            isListView: localStore.getBoolean('squidex.assets.list-view')
+        });
     }
 
     public ngOnInit() {
-        this.state.load().pipe(onErrorResumeNext()).subscribe();
+        this.assetsState.load().pipe(onErrorResumeNext()).subscribe();
     }
 
     public reload() {
-        this.state.load(true).pipe(onErrorResumeNext()).subscribe();
+        this.assetsState.load(true).pipe(onErrorResumeNext()).subscribe();
     }
 
     public search(query: string) {
-        this.state.search(query).pipe(onErrorResumeNext()).subscribe();
+        this.assetsState.search(query).pipe(onErrorResumeNext()).subscribe();
     }
 
     public complete() {
@@ -53,17 +64,33 @@ export class AssetsSelectorComponent implements OnInit {
     }
 
     public select() {
-        this.selected.emit(Object.values(this.selectedAssets));
+        this.selected.emit(Object.values(this.snapshot.selectedAssets));
+    }
+
+    public selectTags(tags: string[]) {
+        this.assetsState.selectTags(tags).pipe(onErrorResumeNext()).subscribe();
     }
 
     public selectAsset(asset: AssetDto) {
-        if (this.selectedAssets[asset.id]) {
-            delete this.selectedAssets[asset.id];
-        } else {
-            this.selectedAssets[asset.id] = asset;
-        }
+        this.next(s => {
+            const selectedAssets = { ...s.selectedAssets };
 
-        this.selectionCount = Object.keys(this.selectedAssets).length;
+            if (selectedAssets[asset.id]) {
+                delete selectedAssets[asset.id];
+            } else {
+                selectedAssets[asset.id] = asset;
+            }
+
+            const selectionCount = Object.keys(selectedAssets).length;
+
+            return { ...s, selectedAssets, selectionCount };
+        });
+    }
+
+    public changeView(isListView: boolean) {
+        this.next(s => ({ ...s, isListView }));
+
+        this.localStore.setBoolean('squidex.assets.list-view', isListView);
     }
 }
 

@@ -5,15 +5,15 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System.Collections.Immutable;
 using Squidex.Domain.Apps.Core.Schemas;
 using Squidex.Domain.Apps.Entities.Schemas.Commands;
+using Squidex.Infrastructure.Collections;
 
 namespace Squidex.Domain.Apps.Entities.Apps.Templates.Builders
 {
     public class StringFieldBuilder : FieldBuilder
     {
-        public StringFieldBuilder(CreateSchemaField field)
+        public StringFieldBuilder(UpsertSchemaField field)
             : base(field)
         {
         }
@@ -34,7 +34,7 @@ namespace Squidex.Domain.Apps.Entities.Apps.Templates.Builders
 
         public StringFieldBuilder AsDropDown(params string[] values)
         {
-            Properties<StringFieldProperties>().AllowedValues = ImmutableList.Create(values);
+            Properties<StringFieldProperties>().AllowedValues = ReadOnlyCollection.Create(values);
             Properties<StringFieldProperties>().Editor = StringFieldEditor.Dropdown;
 
             return this;

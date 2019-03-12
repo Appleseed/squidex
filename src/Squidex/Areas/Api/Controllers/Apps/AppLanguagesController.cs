@@ -8,22 +8,20 @@
 using System;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using NSwag.Annotations;
+using Microsoft.Net.Http.Headers;
 using Squidex.Areas.Api.Controllers.Apps.Models;
 using Squidex.Domain.Apps.Entities.Apps.Commands;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Commands;
 using Squidex.Pipeline;
+using Squidex.Shared;
 
 namespace Squidex.Areas.Api.Controllers.Apps
 {
     /// <summary>
     /// Manages and configures apps.
     /// </summary>
-    [ApiAuthorize]
-    [ApiExceptionFilter]
-    [AppApi]
-    [SwaggerTag(nameof(Apps))]
+    [ApiExplorerSettings(GroupName = nameof(Apps))]
     public sealed class AppLanguagesController : ApiController
     {
         public AppLanguagesController(ICommandBus commandBus)
@@ -39,16 +37,16 @@ namespace Squidex.Areas.Api.Controllers.Apps
         /// 200 => Language configuration returned.
         /// 404 => App not found.
         /// </returns>
-        [MustBeAppReader]
         [HttpGet]
         [Route("apps/{app}/languages/")]
         [ProducesResponseType(typeof(AppLanguageDto[]), 200)]
+        [ApiPermission(Permissions.AppCommon)]
         [ApiCosts(0)]
         public IActionResult GetLanguages(string app)
         {
             var response = AppLanguageDto.FromApp(App);
 
-            Response.Headers["ETag"] = App.Version.ToString();
+            Response.Headers[HeaderNames.ETag] = App.Version.ToString();
 
             return Ok(response);
         }
@@ -63,13 +61,13 @@ namespace Squidex.Areas.Api.Controllers.Apps
         /// 400 => Language request not valid.
         /// 404 => App not found.
         /// </returns>
-        [MustBeAppEditor]
         [HttpPost]
         [Route("apps/{app}/languages/")]
         [ProducesResponseType(typeof(AppLanguageDto), 201)]
         [ProducesResponseType(typeof(ErrorDto), 400)]
+        [ApiPermission(Permissions.AppLanguagesCreate)]
         [ApiCosts(1)]
-        public async Task<IActionResult> PostLanguage(string app, [FromBody] AddAppLanguageDto request)
+        public async Task<IActionResult> PostLanguage(string app, [FromBody] AddLanguageDto request)
         {
             var command = request.ToCommand();
 
@@ -91,11 +89,11 @@ namespace Squidex.Areas.Api.Controllers.Apps
         /// 400 => Language request not valid.
         /// 404 => Language or app not found.
         /// </returns>
-        [MustBeAppEditor]
         [HttpPut]
         [Route("apps/{app}/languages/{language}/")]
+        [ApiPermission(Permissions.AppLanguagesUpdate)]
         [ApiCosts(1)]
-        public async Task<IActionResult> Update(string app, string language, [FromBody] UpdateAppLanguageDto request)
+        public async Task<IActionResult> Update(string app, string language, [FromBody] UpdateLanguageDto request)
         {
             await CommandBus.PublishAsync(request.ToCommand(ParseLanguage(language)));
 
@@ -111,9 +109,9 @@ namespace Squidex.Areas.Api.Controllers.Apps
         /// 204 => Language deleted.
         /// 404 => Language or app not found.
         /// </returns>
-        [MustBeAppEditor]
         [HttpDelete]
         [Route("apps/{app}/languages/{language}/")]
+        [ApiPermission(Permissions.AppLanguagesDelete)]
         [ApiCosts(1)]
         public async Task<IActionResult> DeleteLanguage(string app, string language)
         {

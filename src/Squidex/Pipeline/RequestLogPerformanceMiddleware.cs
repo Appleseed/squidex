@@ -9,12 +9,12 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Log;
+using Squidex.Infrastructure.Security;
 
 namespace Squidex.Pipeline
 {
     public sealed class RequestLogPerformanceMiddleware : IMiddleware
     {
-        private const int LongOperationsMs = 1000;
         private readonly ISemanticLog log;
 
         public RequestLogPerformanceMiddleware(ISemanticLog log)
@@ -36,14 +36,44 @@ namespace Squidex.Pipeline
                 {
                     var elapsedMs = watch.Stop();
 
-                    log.LogInformation(w =>
+                    log.LogInformation((elapsedMs, context), (ctx, w) =>
                     {
                         Profiler.Session?.Write(w);
 
-                        w.WriteProperty("elapsedRequestMs", elapsedMs);
+                        w.WriteObject("filters", ctx.context, LogFilters);
+                        w.WriteProperty("elapsedRequestMs", ctx.elapsedMs);
                     });
                 }
             }
+        }
+
+        private static void LogFilters(HttpContext context, IObjectWriter c)
+        {
+            var app = context.Features.Get<IAppFeature>()?.App;
+
+            if (app != null)
+            {
+                c.WriteProperty("appId", app.Id.ToString());
+                c.WriteProperty("appName", app.Name);
+            }
+
+            var userId = context.User.OpenIdSubject();
+
+            if (!string.IsNullOrWhiteSpace(userId))
+            {
+                c.WriteProperty(nameof(userId), userId);
+            }
+
+            var clientId = context.User.OpenIdClientId();
+
+            if (!string.IsNullOrWhiteSpace(clientId))
+            {
+                c.WriteProperty(nameof(clientId), clientId);
+            }
+
+            var costs = context.Features.Get<IApiCostsFeature>()?.Weight ?? 0;
+
+            c.WriteProperty(nameof(costs), costs);
         }
     }
 }

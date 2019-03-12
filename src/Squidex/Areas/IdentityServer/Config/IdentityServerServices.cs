@@ -20,7 +20,6 @@ using Microsoft.Extensions.Options;
 using Squidex.Config;
 using Squidex.Domain.Users;
 using Squidex.Shared.Identity;
-using Squidex.Shared.Users;
 
 namespace Squidex.Areas.IdentityServer.Config
 {
@@ -55,11 +54,11 @@ namespace Squidex.Areas.IdentityServer.Config
             services.AddSingleton(GetApiResources());
             services.AddSingleton(GetIdentityResources());
 
-            services.AddIdentity<IUser, IRole>()
+            services.AddIdentity<IdentityUser, IdentityRole>()
                 .AddDefaultTokenProviders();
-            services.AddSingleton<IPasswordValidator<IUser>,
+            services.AddSingleton<IPasswordValidator<IdentityUser>,
                 PwnedPasswordValidator>();
-            services.AddSingleton<IUserClaimsPrincipalFactory<IUser>,
+            services.AddSingleton<IUserClaimsPrincipalFactory<IdentityUser>,
                 UserClaimsPrincipalFactoryWithEmail>();
             services.AddSingleton<IClientStore,
                 LazyClientStore>();
@@ -70,7 +69,7 @@ namespace Squidex.Areas.IdentityServer.Config
                 {
                     options.UserInteraction.ErrorUrl = "/error/";
                 })
-                .AddAspNetIdentity<IUser>()
+                .AddAspNetIdentity<IdentityUser>()
                 .AddInMemoryApiResources(GetApiResources())
                 .AddInMemoryIdentityResources(GetIdentityResources())
                 .AddSigningCredential(certificate);
@@ -83,7 +82,8 @@ namespace Squidex.Areas.IdentityServer.Config
                 UserClaims = new List<string>
                 {
                     JwtClaimTypes.Email,
-                    JwtClaimTypes.Role
+                    JwtClaimTypes.Role,
+                    SquidexClaimTypes.Permissions
                 }
             };
         }
@@ -98,11 +98,16 @@ namespace Squidex.Areas.IdentityServer.Config
                 {
                     JwtClaimTypes.Role
                 });
+            yield return new IdentityResource(Constants.PermissionsScope,
+                new[]
+                {
+                    SquidexClaimTypes.Permissions
+                });
             yield return new IdentityResource(Constants.ProfileScope,
                 new[]
                 {
-                    SquidexClaimTypes.SquidexDisplayName,
-                    SquidexClaimTypes.SquidexPictureUrl
+                    SquidexClaimTypes.DisplayName,
+                    SquidexClaimTypes.PictureUrl
                 });
         }
     }

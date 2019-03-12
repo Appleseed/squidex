@@ -6,25 +6,37 @@
 // ==========================================================================
 
 using Microsoft.AspNetCore.Mvc;
-using NSwag.Annotations;
 using Squidex.Infrastructure.Commands;
 using Squidex.Pipeline;
+using Squidex.Shared;
 
 namespace Squidex.Areas.Api.Controllers.Ping
 {
     /// <summary>
     /// Makes a ping request.
     /// </summary>
-    [ApiAuthorize]
-    [ApiExceptionFilter]
-    [AppApi]
-    [MustBeAppReader]
-    [SwaggerTag(nameof(Ping))]
+    [ApiExplorerSettings(GroupName = nameof(Ping))]
     public sealed class PingController : ApiController
     {
         public PingController(ICommandBus commandBus)
             : base(commandBus)
         {
+        }
+
+        /// <summary>
+        /// Get ping status of the API.
+        /// </summary>
+        /// <returns>
+        /// 204 => Service ping successful.
+        /// </returns>
+        /// <remarks>
+        /// Can be used to test, if the Squidex API is alive and responding.
+        /// </remarks>
+        [HttpGet]
+        [Route("ping/")]
+        public IActionResult GetPing()
+        {
+            return NoContent();
         }
 
         /// <summary>
@@ -39,8 +51,9 @@ namespace Squidex.Areas.Api.Controllers.Ping
         /// </remarks>
         [HttpGet]
         [Route("ping/{app}/")]
+        [ApiPermission(Permissions.AppCommon)]
         [ApiCosts(0)]
-        public IActionResult GetPing(string app)
+        public IActionResult GetAppPing(string app)
         {
             return NoContent();
         }

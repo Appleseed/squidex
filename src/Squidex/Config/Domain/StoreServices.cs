@@ -7,7 +7,6 @@
 
 using System;
 using IdentityServer4.Stores;
-using Microsoft.AspNetCore.DataProtection.Repositories;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,12 +27,13 @@ using Squidex.Domain.Users;
 using Squidex.Domain.Users.MongoDb;
 using Squidex.Domain.Users.MongoDb.Infrastructure;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.Diagnostics;
 using Squidex.Infrastructure.EventSourcing;
+using Squidex.Infrastructure.Json;
 using Squidex.Infrastructure.Migrations;
 using Squidex.Infrastructure.MongoDb;
 using Squidex.Infrastructure.States;
 using Squidex.Infrastructure.UsageTracking;
-using Squidex.Shared.Users;
 
 namespace Squidex.Config.Domain
 {
@@ -60,63 +60,48 @@ namespace Squidex.Config.Domain
                     services.AddSingletonAs(mongoDatabase)
                         .As<IMongoDatabase>();
 
-                    services.AddSingletonAs<MongoXmlRepository>()
-                        .As<IXmlRepository>()
-                        .As<IInitializable>();
+                    services.AddHealthChecks()
+                        .AddCheck<MongoDBHealthCheck>("MongoDB", tags: new[] { "node" });
 
                     services.AddSingletonAs<MongoMigrationStatus>()
-                        .As<IMigrationStatus>()
-                        .As<IInitializable>();
-
-                    services.AddSingletonAs<MongoPersistedGrantStore>()
-                        .As<IPersistedGrantStore>()
-                        .As<IInitializable>();
-
-                    services.AddSingletonAs<MongoUsageStore>()
-                        .As<IUsageStore>()
-                        .As<IInitializable>();
-
-                    services.AddSingletonAs<MongoRuleEventRepository>()
-                        .As<IRuleEventRepository>()
-                        .As<IInitializable>();
-
-                    services.AddSingletonAs<MongoUserStore>()
-                        .As<IUserStore<IUser>>()
-                        .As<IUserFactory>()
-                        .As<IUserResolver>()
-                        .As<IInitializable>();
-
-                    services.AddSingletonAs<MongoRoleStore>()
-                        .As<IRoleStore<IRole>>()
-                        .As<IRoleFactory>()
-                        .As<IInitializable>();
-
-                    services.AddSingletonAs<MongoHistoryEventRepository>()
-                        .As<IHistoryEventRepository>()
-                        .As<IEventConsumer>()
-                        .As<IInitializable>();
-
-                    services.AddSingletonAs<MongoAssetStatsRepository>()
-                        .As<IAssetStatsRepository>()
-                        .As<IEventConsumer>()
-                        .As<IInitializable>();
-
-                    services.AddSingletonAs<MongoAssetRepository>()
-                        .As<IAssetRepository>()
-                        .As<ISnapshotStore<AssetState, Guid>>()
-                        .As<IInitializable>();
-
-                    services.AddSingletonAs(c => new MongoContentRepository(mongoContentDatabase, c.GetService<IAppProvider>()))
-                        .As<IContentRepository>()
-                        .As<ISnapshotStore<ContentState, Guid>>()
-                        .As<IEventConsumer>()
-                        .As<IInitializable>();
+                        .As<IMigrationStatus>();
 
                     services.AddTransientAs<ConvertOldSnapshotStores>()
                         .As<IMigration>();
 
+                    services.AddTransientAs<ConvertRuleEventsJson>()
+                        .As<IMigration>();
+
                     services.AddTransientAs(c => new DeleteContentCollections(mongoContentDatabase))
                         .As<IMigration>();
+
+                    services.AddSingletonAs<MongoUsageRepository>()
+                        .As<IUsageRepository>();
+
+                    services.AddSingletonAs<MongoRuleEventRepository>()
+                        .As<IRuleEventRepository>();
+
+                    services.AddSingletonAs<MongoHistoryEventRepository>()
+                        .As<IHistoryEventRepository>();
+
+                    services.AddSingletonAs<MongoPersistedGrantStore>()
+                        .As<IPersistedGrantStore>();
+
+                    services.AddSingletonAs<MongoRoleStore>()
+                        .As<IRoleStore<IdentityRole>>();
+
+                    services.AddSingletonAs<MongoUserStore>()
+                        .As<IUserStore<IdentityUser>>()
+                        .As<IUserFactory>();
+
+                    services.AddSingletonAs<MongoAssetRepository>()
+                        .As<IAssetRepository>()
+                        .As<ISnapshotStore<AssetState, Guid>>();
+
+                    services.AddSingletonAs(c => new MongoContentRepository(mongoContentDatabase, c.GetRequiredService<IAppProvider>(), c.GetRequiredService<IJsonSerializer>()))
+                        .As<IContentRepository>()
+                        .As<ISnapshotStore<ContentState, Guid>>()
+                        .As<IEventConsumer>();
                 }
             });
 

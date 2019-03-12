@@ -33,7 +33,7 @@ namespace Squidex.Infrastructure.Assets
         [Fact]
         public void Should_throw_when_creating_directory_failed()
         {
-            Assert.Throws<ConfigurationException>(() => new FolderAssetStore(CreateInvalidPath(), A.Dummy<ISemanticLog>()).Initialize());
+            Assert.Throws<ConfigurationException>(() => new FolderAssetStore(CreateInvalidPath(), A.Dummy<ISemanticLog>()).InitializeAsync().Wait());
         }
 
         [Fact]
@@ -45,9 +45,9 @@ namespace Squidex.Infrastructure.Assets
         [Fact]
         public void Should_calculate_source_url()
         {
-            var url = Sut.GenerateSourceUrl(AssetId, 1, null);
+            var url = Sut.GeneratePublicUrl(AssetId, 1, null);
 
-            Assert.Equal(Path.Combine(testFolder, $"{AssetId}_1"), url);
+            Assert.Null(url);
         }
 
         private static string CreateInvalidPath()

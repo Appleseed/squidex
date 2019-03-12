@@ -6,10 +6,12 @@
 // ==========================================================================
 
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using Jint;
 using Jint.Native;
+using Jint.Native.Date;
 using Jint.Native.Object;
-using Jint.Parser;
 using Jint.Runtime;
 using Jint.Runtime.Interop;
 using Squidex.Domain.Apps.Core.Contents;
@@ -115,7 +117,7 @@ namespace Squidex.Domain.Apps.Core.Scripting
             {
                 engine.Execute(script);
             }
-            catch (ParserException ex)
+            catch (ArgumentException ex)
             {
                 throw new ValidationException($"Failed to execute script with javascript syntax error: {ex.Message}", new ValidationError(ex.Message));
             }
@@ -127,7 +129,7 @@ namespace Squidex.Domain.Apps.Core.Scripting
 
         private Engine CreateScriptEngine(ScriptContext context)
         {
-            var engine = new Engine(options => options.TimeoutInterval(Timeout).Strict());
+            var engine = CreateScriptEngine();
 
             var contextInstance = new ObjectInstance(engine);
 
@@ -143,7 +145,7 @@ namespace Squidex.Domain.Apps.Core.Scripting
 
             if (context.User != null)
             {
-                contextInstance.FastAddProperty("user", new JintUser(engine, context.User), false, true, false);
+                contextInstance.FastAddProperty("user", JintUser.Create(engine, context.User), false, true, false);
             }
 
             if (!string.IsNullOrWhiteSpace(context.Operation))
@@ -152,10 +154,51 @@ namespace Squidex.Domain.Apps.Core.Scripting
             }
 
             engine.SetValue("ctx", contextInstance);
-
-            engine.SetValue("slugify", new ClrFunctionInstance(engine, Slugify));
+            engine.SetValue("context", contextInstance);
 
             return engine;
+        }
+
+        private Engine CreateScriptEngine(IReferenceResolver resolver = null, Dictionary<string, Func<string>> customFormatters = null)
+        {
+            var engine = new Engine(options =>
+            {
+                if (resolver != null)
+                {
+                    options.SetReferencesResolver(resolver);
+                }
+
+                options.TimeoutInterval(Timeout).Strict().AddObjectConverter(DefaultConverter.Instance);
+            });
+
+            if (customFormatters != null)
+            {
+                foreach (var kvp in customFormatters)
+                {
+                    engine.SetValue(kvp.Key, Safe(kvp.Value));
+                }
+            }
+
+            engine.SetValue("slugify", new ClrFunctionInstance(engine, "slugify", Slugify));
+            engine.SetValue("formatTime", new ClrFunctionInstance(engine, "formatTime", FormatDate));
+            engine.SetValue("formatDate", new ClrFunctionInstance(engine, "formatDate", FormatDate));
+
+            return engine;
+        }
+
+        private static Func<string> Safe(Func<string> func)
+        {
+            return () =>
+            {
+                try
+                {
+                    return func();
+                }
+                catch
+                {
+                    return "null";
+                }
+            };
         }
 
         private static JsValue Slugify(JsValue thisObject, JsValue[] arguments)
@@ -171,6 +214,21 @@ namespace Squidex.Domain.Apps.Core.Scripting
                 }
 
                 return stringInput.Slugify(null, single);
+            }
+            catch
+            {
+                return JsValue.Undefined;
+            }
+        }
+
+        private static JsValue FormatDate(JsValue thisObject, JsValue[] arguments)
+        {
+            try
+            {
+                var dateValue = ((DateInstance)arguments.At(0)).ToDateTime();
+                var dateFormat = TypeConverter.ToString(arguments.At(1));
+
+                return dateValue.ToString(dateFormat, CultureInfo.InvariantCulture);
             }
             catch
             {
@@ -196,6 +254,46 @@ namespace Squidex.Domain.Apps.Core.Scripting
 
                 throw new ValidationException("Script rejected the operation.", errors);
             }));
+        }
+
+        public bool Evaluate(string name, object context, string script)
+        {
+            try
+            {
+                var result =
+                    CreateScriptEngine(NullPropagation.Instance)
+                        .SetValue(name, context)
+                        .Execute(script)
+                        .GetCompletionValue()
+                        .ToObject();
+
+                return (bool)result;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public string Interpolate(string name, object context, string script, Dictionary<string, Func<string>> customFormatters = null)
+        {
+            try
+            {
+                var result =
+                    CreateScriptEngine(NullPropagation.Instance, customFormatters)
+                        .SetValue(name, context)
+                        .Execute(script)
+                        .GetCompletionValue()
+                        .ToObject();
+
+                var converted = result.ToString();
+
+                return converted == "undefined" ? "null" : converted;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
         }
     }
 }

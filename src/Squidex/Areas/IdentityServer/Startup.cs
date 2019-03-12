@@ -17,16 +17,13 @@ namespace Squidex.Areas.IdentityServer
     {
         public static void ConfigureIdentityServer(this IApplicationBuilder app)
         {
-            app.ApplicationServices.UseMyAdminRole();
             app.ApplicationServices.UseMyAdmin();
 
             var environment = app.ApplicationServices.GetRequiredService<IHostingEnvironment>();
 
             app.Map(Constants.IdentityServerPrefix, identityApp =>
             {
-                identityApp.UseMyIdentityServer();
-
-                if (environment.IsDevelopment())
+                if (!environment.IsDevelopment())
                 {
                     identityApp.UseDeveloperExceptionPage();
                 }
@@ -34,6 +31,8 @@ namespace Squidex.Areas.IdentityServer
                 {
                     identityApp.UseExceptionHandler("/error");
                 }
+
+                identityApp.UseMyIdentityServer();
 
                 identityApp.UseStaticFiles();
                 identityApp.UseMvc();

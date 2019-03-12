@@ -13,6 +13,17 @@ namespace Squidex.Infrastructure
     public class StringExtensionsTests
     {
         [Theory]
+        [InlineData(null, false)]
+        [InlineData("", false)]
+        [InlineData("me", false)]
+        [InlineData("me@@web.com", false)]
+        [InlineData("me@web.com", true)]
+        public void Should_check_email(string email, bool isEmail)
+        {
+            Assert.Equal(isEmail, email.IsEmail());
+        }
+
+        [Theory]
         [InlineData(null)]
         [InlineData("")]
         [InlineData(" ")]

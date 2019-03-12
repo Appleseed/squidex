@@ -8,45 +8,40 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Newtonsoft.Json.Linq;
 using Orleans;
 using Squidex.Domain.Apps.Entities.Apps.Indexes;
-using Squidex.Domain.Apps.Entities.Apps.State;
 using Squidex.Domain.Apps.Entities.Backup;
 using Squidex.Domain.Apps.Events;
 using Squidex.Domain.Apps.Events.Apps;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.EventSourcing;
+using Squidex.Infrastructure.Json.Objects;
 using Squidex.Infrastructure.Orleans;
-using Squidex.Infrastructure.States;
 using Squidex.Shared.Users;
 
 namespace Squidex.Domain.Apps.Entities.Apps
 {
-    public sealed class BackupApps : BackupHandlerWithStore
+    public sealed class BackupApps : BackupHandler
     {
         private const string UsersFile = "Users.json";
         private const string SettingsFile = "Settings.json";
         private readonly IGrainFactory grainFactory;
         private readonly IUserResolver userResolver;
         private readonly IAppsByNameIndex appsByNameIndex;
-        private readonly HashSet<string> activeUsers = new HashSet<string>();
+        private readonly HashSet<string> contributors = new HashSet<string>();
+        private readonly Dictionary<string, RefToken> userMapping = new Dictionary<string, RefToken>();
         private Dictionary<string, string> usersWithEmail = new Dictionary<string, string>();
-        private Dictionary<string, RefToken> userMapping = new Dictionary<string, RefToken>();
         private bool isReserved;
-        private bool isActorAssigned;
         private string appName;
 
         public override string Name { get; } = "Apps";
 
-        public BackupApps(IStore<Guid> store, IGrainFactory grainFactory, IUserResolver userResolver)
-            : base(store)
+        public BackupApps(IGrainFactory grainFactory, IUserResolver userResolver)
         {
             Guard.NotNull(grainFactory, nameof(grainFactory));
             Guard.NotNull(userResolver, nameof(userResolver));
 
             this.grainFactory = grainFactory;
-
             this.userResolver = userResolver;
 
             appsByNameIndex = grainFactory.GetGrain<IAppsByNameIndex>(SingleGrain.Id);
@@ -76,7 +71,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
             await WriteSettingsAsync(writer, appId);
         }
 
-        public async override Task RestoreEventAsync(Envelope<IEvent> @event, Guid appId, BackupReader reader, RefToken actor)
+        public override async Task<bool> RestoreEventAsync(Envelope<IEvent> @event, Guid appId, BackupReader reader, RefToken actor)
         {
             switch (@event.Payload)
             {
@@ -84,7 +79,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
                     {
                         appName = appCreated.Name;
 
-                        await ResolveUsersAsync(reader, actor);
+                        await ResolveUsersAsync(reader);
                         await ReserveAppAsync(appId);
 
                         break;
@@ -92,26 +87,25 @@ namespace Squidex.Domain.Apps.Entities.Apps
 
                 case AppContributorAssigned contributorAssigned:
                     {
-                        if (isActorAssigned)
+                        if (!userMapping.TryGetValue(contributorAssigned.ContributorId, out var user) || user.Equals(actor))
                         {
-                            contributorAssigned.ContributorId = MapUser(contributorAssigned.ContributorId, actor).Identifier;
-                        }
-                        else
-                        {
-                            isActorAssigned = true;
-
-                            contributorAssigned.ContributorId = actor.Identifier;
+                            return false;
                         }
 
-                        activeUsers.Add(contributorAssigned.ContributorId);
+                        contributorAssigned.ContributorId = user.Identifier;
+                        contributors.Add(contributorAssigned.ContributorId);
                         break;
                     }
 
                 case AppContributorRemoved contributorRemoved:
                     {
-                        contributorRemoved.ContributorId = MapUser(contributorRemoved.ContributorId, actor).Identifier;
+                        if (!userMapping.TryGetValue(contributorRemoved.ContributorId, out var user) || user.Equals(actor))
+                        {
+                            return false;
+                        }
 
-                        activeUsers.Remove(contributorRemoved.ContributorId);
+                        contributorRemoved.ContributorId = user.Identifier;
+                        contributors.Remove(contributorRemoved.ContributorId);
                         break;
                     }
             }
@@ -120,6 +114,8 @@ namespace Squidex.Domain.Apps.Entities.Apps
             {
                 squidexEvent.Actor = MapUser(squidexEvent.Actor.Identifier, actor);
             }
+
+            return true;
         }
 
         public override Task RestoreAsync(Guid appId, BackupReader reader)
@@ -148,7 +144,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
             return userMapping.GetOrAdd(userId, fallback);
         }
 
-        private async Task ResolveUsersAsync(BackupReader reader, RefToken actor)
+        private async Task ResolveUsersAsync(BackupReader reader)
         {
             await ReadUsersAsync(reader);
 
@@ -160,23 +156,19 @@ namespace Squidex.Domain.Apps.Entities.Apps
                 {
                     userMapping[kvp.Key] = new RefToken(RefTokenType.Subject, user.Id);
                 }
-                else
-                {
-                    userMapping[kvp.Key] = actor;
-                }
             }
         }
 
         private async Task ReadUsersAsync(BackupReader reader)
         {
-            var json = await reader.ReadJsonAttachmentAsync(UsersFile);
+            var json = await reader.ReadJsonAttachmentAsync<Dictionary<string, string>>(UsersFile);
 
-            usersWithEmail = json.ToObject<Dictionary<string, string>>();
+            usersWithEmail = json;
         }
 
         private async Task WriteUsersAsync(BackupWriter writer)
         {
-            var json = JObject.FromObject(usersWithEmail);
+            var json = usersWithEmail;
 
             await writer.WriteJsonAsync(UsersFile, json);
         }
@@ -190,18 +182,16 @@ namespace Squidex.Domain.Apps.Entities.Apps
 
         private async Task ReadSettingsAsync(BackupReader reader, Guid appId)
         {
-            var json = await reader.ReadJsonAttachmentAsync(SettingsFile);
+            var json = await reader.ReadJsonAttachmentAsync<JsonObject>(SettingsFile);
 
-            await grainFactory.GetGrain<IAppUISettingsGrain>(appId).SetAsync((JObject)json);
+            await grainFactory.GetGrain<IAppUISettingsGrain>(appId).SetAsync(json);
         }
 
         public override async Task CompleteRestoreAsync(Guid appId, BackupReader reader)
         {
-            await RebuildAsync<AppState, AppGrain>(appId, (e, s) => s.Apply(e));
-
             await appsByNameIndex.AddAppAsync(appId, appName);
 
-            foreach (var user in activeUsers)
+            foreach (var user in contributors)
             {
                 await grainFactory.GetGrain<IAppsByUserIndex>(user).AddAppAsync(appId);
             }

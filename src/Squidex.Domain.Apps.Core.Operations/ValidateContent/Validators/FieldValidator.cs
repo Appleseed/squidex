@@ -7,9 +7,8 @@
 
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Newtonsoft.Json.Linq;
 using Squidex.Domain.Apps.Core.Schemas;
-using Squidex.Infrastructure.Json;
+using Squidex.Infrastructure.Json.Objects;
 
 namespace Squidex.Domain.Apps.Core.ValidateContent.Validators
 {
@@ -30,14 +29,14 @@ namespace Squidex.Domain.Apps.Core.ValidateContent.Validators
             {
                 object typedValue = null;
 
-                if (value is JToken jToken)
+                if (value is IJsonValue jsonValue)
                 {
-                    typedValue = jToken.IsNull() ? null : JsonValueConverter.ConvertValue(field, jToken);
+                    typedValue = jsonValue.Type == JsonValueType.Null ? null : JsonValueConverter.ConvertValue(field, jsonValue);
                 }
 
                 var tasks = new List<Task>();
 
-                foreach (var validator in ValidatorsFactory.CreateValidators(field))
+                foreach (var validator in validators)
                 {
                     tasks.Add(validator.ValidateAsync(typedValue, context, addError));
                 }

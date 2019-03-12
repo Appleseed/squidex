@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using FakeItEasy;
+using Squidex.Infrastructure;
 using Squidex.Infrastructure.States;
 using Xunit;
 
@@ -17,42 +18,41 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Indexes
     public class SchemasByAppIndexGrainTests
     {
         private readonly IStore<Guid> store = A.Fake<IStore<Guid>>();
-        private readonly IPersistence<SchemasByAppIndexGrain.State> persistence = A.Fake<IPersistence<SchemasByAppIndexGrain.State>>();
-        private readonly Guid schemaId1 = Guid.NewGuid();
-        private readonly Guid schemaId2 = Guid.NewGuid();
-        private readonly string schemaName1 = "my-schema1";
-        private readonly string schemaName2 = "my-schema2";
+        private readonly IPersistence<SchemasByAppIndexGrain.GrainState> persistence = A.Fake<IPersistence<SchemasByAppIndexGrain.GrainState>>();
+        private readonly NamedId<Guid> appId = NamedId.Of(Guid.NewGuid(), "my-app");
+        private readonly NamedId<Guid> schemaId1 = NamedId.Of(Guid.NewGuid(), "my-schema1");
+        private readonly NamedId<Guid> schemaId2 = NamedId.Of(Guid.NewGuid(), "my-schema2");
         private readonly SchemasByAppIndexGrain sut;
 
         public SchemasByAppIndexGrainTests()
         {
-            A.CallTo(() => store.WithSnapshots(A<Type>.Ignored, A<Guid>.Ignored, A<Func<SchemasByAppIndexGrain.State, Task>>.Ignored))
+            A.CallTo(() => store.WithSnapshots(typeof(SchemasByAppIndexGrain), appId.Id, A<HandleSnapshot<SchemasByAppIndexGrain.GrainState>>.Ignored))
                 .Returns(persistence);
 
             sut = new SchemasByAppIndexGrain(store);
-            sut.OnActivateAsync(Guid.NewGuid()).Wait();
+            sut.ActivateAsync(appId.Id).Wait();
         }
 
         [Fact]
         public async Task Should_add_schema_id_to_index()
         {
-            await sut.AddSchemaAsync(schemaId1, schemaName1);
+            await sut.AddSchemaAsync(schemaId1.Id, schemaId1.Name);
 
-            var result = await sut.GetSchemaIdAsync(schemaName1);
+            var result = await sut.GetSchemaIdAsync(schemaId1.Name);
 
-            Assert.Equal(schemaId1, result);
+            Assert.Equal(schemaId1.Id, result);
 
-            A.CallTo(() => persistence.WriteSnapshotAsync(A<SchemasByAppIndexGrain.State>.Ignored))
+            A.CallTo(() => persistence.WriteSnapshotAsync(A<SchemasByAppIndexGrain.GrainState>.Ignored))
                 .MustHaveHappened();
         }
 
         [Fact]
         public async Task Should_delete_and_reset_state_when_cleaning()
         {
-            await sut.AddSchemaAsync(schemaId1, schemaName1);
+            await sut.AddSchemaAsync(schemaId1.Id, schemaId1.Name);
             await sut.ClearAsync();
 
-            var id = await sut.GetSchemaIdAsync(schemaName1);
+            var id = await sut.GetSchemaIdAsync(schemaId1.Name);
 
             Assert.Equal(id, Guid.Empty);
 
@@ -63,14 +63,14 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Indexes
         [Fact]
         public async Task Should_remove_schema_id_from_index()
         {
-            await sut.AddSchemaAsync(schemaId1, schemaName1);
-            await sut.RemoveSchemaAsync(schemaId1);
+            await sut.AddSchemaAsync(schemaId1.Id, schemaId1.Name);
+            await sut.RemoveSchemaAsync(schemaId1.Id);
 
-            var result = await sut.GetSchemaIdAsync(schemaName1);
+            var result = await sut.GetSchemaIdAsync(schemaId1.Name);
 
             Assert.Equal(Guid.Empty, result);
 
-            A.CallTo(() => persistence.WriteSnapshotAsync(A<SchemasByAppIndexGrain.State>.Ignored))
+            A.CallTo(() => persistence.WriteSnapshotAsync(A<SchemasByAppIndexGrain.GrainState>.Ignored))
                 .MustHaveHappenedTwiceExactly();
         }
 
@@ -79,18 +79,18 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Indexes
         {
             var state = new Dictionary<string, Guid>
             {
-                [schemaName1] = schemaId1,
-                [schemaName2] = schemaId2
+                [schemaId1.Name] = schemaId1.Id,
+                [schemaId2.Name] = schemaId2.Id
             };
 
             await sut.RebuildAsync(state);
 
-            Assert.Equal(schemaId1, await sut.GetSchemaIdAsync(schemaName1));
-            Assert.Equal(schemaId2, await sut.GetSchemaIdAsync(schemaName2));
+            Assert.Equal(schemaId1.Id, await sut.GetSchemaIdAsync(schemaId1.Name));
+            Assert.Equal(schemaId2.Id, await sut.GetSchemaIdAsync(schemaId2.Name));
 
-            Assert.Equal(new List<Guid> { schemaId1, schemaId2 }, await sut.GetSchemaIdsAsync());
+            Assert.Equal(new List<Guid> { schemaId1.Id, schemaId2.Id }, await sut.GetSchemaIdsAsync());
 
-            A.CallTo(() => persistence.WriteSnapshotAsync(A<SchemasByAppIndexGrain.State>.Ignored))
+            A.CallTo(() => persistence.WriteSnapshotAsync(A<SchemasByAppIndexGrain.GrainState>.Ignored))
                 .MustHaveHappened();
         }
     }

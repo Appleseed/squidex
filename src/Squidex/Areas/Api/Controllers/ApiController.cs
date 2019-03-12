@@ -16,6 +16,8 @@ using Squidex.Pipeline;
 namespace Squidex.Areas.Api.Controllers
 {
     [Area("Api")]
+    [ApiController]
+    [ApiExceptionFilter]
     [ApiModelValidation(false)]
     public abstract class ApiController : Controller
     {
@@ -34,11 +36,6 @@ namespace Squidex.Areas.Api.Controllers
 
                 return appFeature.App;
             }
-        }
-
-        protected string AppName
-        {
-            get { return App.Name; }
         }
 
         protected Guid AppId

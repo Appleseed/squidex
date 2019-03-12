@@ -5,18 +5,25 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json;
+using Squidex.Infrastructure;
+using Squidex.Infrastructure.Reflection;
 
 namespace Squidex.Domain.Apps.Core.Schemas.Json
 {
     public sealed class JsonSchemaModel
     {
-        private static readonly RootField[] Empty = new RootField[0];
-
         [JsonProperty]
         public string Name { get; set; }
+
+        [JsonProperty]
+        public string Category { get; set; }
+
+        [JsonProperty]
+        public bool IsSingleton { get; set; }
 
         [JsonProperty]
         public bool IsPublished { get; set; }
@@ -25,7 +32,13 @@ namespace Squidex.Domain.Apps.Core.Schemas.Json
         public SchemaProperties Properties { get; set; }
 
         [JsonProperty]
-        public List<JsonFieldModel> Fields { get; set; }
+        public SchemaScripts Scripts { get; set; }
+
+        [JsonProperty]
+        public JsonFieldModel[] Fields { get; set; }
+
+        [JsonProperty]
+        public Dictionary<string, string> PreviewUrls { get; set; }
 
         public JsonSchemaModel()
         {
@@ -33,12 +46,10 @@ namespace Squidex.Domain.Apps.Core.Schemas.Json
 
         public JsonSchemaModel(Schema schema)
         {
-            Name = schema.Name;
-
-            Properties = schema.Properties;
+            SimpleMapper.Map(schema, this);
 
             Fields =
-                schema.Fields.Select(x =>
+                schema.Fields.ToArray(x =>
                     new JsonFieldModel
                     {
                         Id = x.Id,
@@ -49,87 +60,52 @@ namespace Squidex.Domain.Apps.Core.Schemas.Json
                         IsDisabled = x.IsDisabled,
                         Partitioning = x.Partitioning.Key,
                         Properties = x.RawProperties
-                    }).ToList();
+                    });
 
-            IsPublished = schema.IsPublished;
+            PreviewUrls = schema.PreviewUrls.ToDictionary(x => x.Key, x => x.Value);
         }
 
-        private static List<JsonNestedFieldModel> CreateChildren(IField field)
+        private static JsonNestedFieldModel[] CreateChildren(IField field)
         {
             if (field is ArrayField arrayField)
             {
-                return arrayField.Fields.Select(x =>
+                return arrayField.Fields.ToArray(x =>
                     new JsonNestedFieldModel
                     {
                         Id = x.Id,
                         Name = x.Name,
                         IsHidden = x.IsHidden,
+                        IsLocked = x.IsLocked,
                         IsDisabled = x.IsDisabled,
                         Properties = x.RawProperties
-                    }).ToList();
+                    });
             }
 
             return null;
         }
 
-        public Schema ToSchema(FieldRegistry registry)
+        public Schema ToSchema()
         {
-            RootField[] fields = Empty;
+            var fields = Fields.ToArray(f => f.ToField()) ?? Array.Empty<RootField>();
 
-            if (Fields != null)
+            var schema = new Schema(Name, fields, Properties, IsPublished, IsSingleton);
+
+            if (!string.IsNullOrWhiteSpace(Category))
             {
-                fields = new RootField[Fields.Count];
-
-                for (var i = 0; i < fields.Length; i++)
-                {
-                    var fieldModel = Fields[i];
-
-                    var parititonKey = new Partitioning(fieldModel.Partitioning);
-
-                    var field = registry.CreateRootField(fieldModel.Id, fieldModel.Name, parititonKey, fieldModel.Properties);
-
-                    if (field is ArrayField arrayField && fieldModel.Children?.Count > 0)
-                    {
-                        foreach (var nestedFieldModel in fieldModel.Children)
-                        {
-                            var nestedField = registry.CreateNestedField(nestedFieldModel.Id, nestedFieldModel.Name, nestedFieldModel.Properties);
-
-                            if (nestedFieldModel.IsHidden)
-                            {
-                                nestedField = nestedField.Hide();
-                            }
-
-                            if (nestedFieldModel.IsDisabled)
-                            {
-                                nestedField = nestedField.Disable();
-                            }
-
-                            arrayField = arrayField.AddField(nestedField);
-                        }
-
-                        field = arrayField;
-                    }
-
-                    if (fieldModel.IsDisabled)
-                    {
-                        field = field.Disable();
-                    }
-
-                    if (fieldModel.IsLocked)
-                    {
-                        field = field.Lock();
-                    }
-
-                    if (fieldModel.IsHidden)
-                    {
-                        field = field.Hide();
-                    }
-
-                    fields[i] = field;
-                }
+                schema = schema.ChangeCategory(Category);
             }
 
-            return new Schema(Name, fields, Properties, IsPublished);
+            if (Scripts != null)
+            {
+                schema = schema.ConfigureScripts(Scripts);
+            }
+
+            if (PreviewUrls?.Count > 0)
+            {
+                schema = schema.ConfigurePreviewUrls(PreviewUrls);
+            }
+
+            return schema;
         }
     }
 }

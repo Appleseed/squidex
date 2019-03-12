@@ -7,7 +7,7 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Squidex.Infrastructure;
@@ -30,6 +30,7 @@ namespace Squidex.Pipeline
             AddHandler<DomainObjectVersionException>(OnDomainObjectVersionException);
             AddHandler<DomainForbiddenException>(OnDomainForbiddenException);
             AddHandler<DomainException>(OnDomainException);
+            AddHandler<SecurityException>(OnSecurityException);
         }
 
         private static IActionResult OnDomainObjectNotFoundException(DomainObjectNotFoundException ex)
@@ -52,9 +53,14 @@ namespace Squidex.Pipeline
             return ErrorResult(403, new ErrorDto { Message = ex.Message });
         }
 
+        private static IActionResult OnSecurityException(SecurityException ex)
+        {
+            return ErrorResult(403, new ErrorDto { Message = ex.Message });
+        }
+
         private static IActionResult OnValidationException(ValidationException ex)
         {
-            return ErrorResult(400, new ErrorDto { Message = ex.Summary, Details = ex.Errors?.Select(e => e.Message).ToArray() });
+            return ErrorResult(400, new ErrorDto { Message = ex.Summary, Details = ex.Errors?.ToArray(e => e.Message) });
         }
 
         private static IActionResult ErrorResult(int statusCode, ErrorDto error)

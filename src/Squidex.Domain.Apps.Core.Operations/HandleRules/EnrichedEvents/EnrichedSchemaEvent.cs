@@ -6,12 +6,21 @@
 // ==========================================================================
 
 using System;
-using Squidex.Infrastructure;
 
 namespace Squidex.Domain.Apps.Core.HandleRules.EnrichedEvents
 {
-    public abstract class EnrichedSchemaEvent : EnrichedEvent
+    public sealed class EnrichedSchemaEvent : EnrichedSchemaEventBase, IEnrichedEntityEvent
     {
-        public NamedId<Guid> SchemaId { get; set; }
+        public EnrichedSchemaEventType Type { get; set; }
+
+        public Guid Id
+        {
+            get { return SchemaId.Id; }
+        }
+
+        public override long Partition
+        {
+            get { return SchemaId.GetHashCode(); }
+        }
     }
 }

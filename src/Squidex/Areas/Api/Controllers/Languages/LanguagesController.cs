@@ -7,7 +7,7 @@
 
 using System.Linq;
 using Microsoft.AspNetCore.Mvc;
-using NSwag.Annotations;
+using Microsoft.Net.Http.Headers;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Commands;
 using Squidex.Pipeline;
@@ -15,11 +15,9 @@ using Squidex.Pipeline;
 namespace Squidex.Areas.Api.Controllers.Languages
 {
     /// <summary>
-    /// Readonly API to the supported langauges.
+    /// Readonly API for supported languages.
     /// </summary>
-    [ApiAuthorize]
-    [ApiExceptionFilter]
-    [SwaggerTag(nameof(Languages))]
+    [ApiExplorerSettings(GroupName = nameof(Languages))]
     public sealed class LanguagesController : ApiController
     {
         public LanguagesController(ICommandBus commandBus)
@@ -39,10 +37,12 @@ namespace Squidex.Areas.Api.Controllers.Languages
         [HttpGet]
         [Route("languages/")]
         [ProducesResponseType(typeof(string[]), 200)]
-        [ApiCosts(0)]
+        [ApiPermission]
         public IActionResult GetLanguages()
         {
-            var response = Language.AllLanguages.Select(LanguageDto.FromLanguage).ToList();
+            var response = Language.AllLanguages.Select(LanguageDto.FromLanguage).ToArray();
+
+            Response.Headers[HeaderNames.ETag] = "1";
 
             return Ok(response);
         }

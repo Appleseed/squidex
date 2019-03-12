@@ -6,11 +6,9 @@
 // ==========================================================================
 
 using System;
-using Squidex.Infrastructure;
 
 namespace Squidex.Domain.Apps.Core.Schemas
 {
-    [TypeName("ArrayField")]
     public sealed class ArrayFieldProperties : FieldProperties
     {
         public int? MinItems { get; set; }
@@ -27,12 +25,12 @@ namespace Squidex.Domain.Apps.Core.Schemas
             return visitor.Visit((IArrayField)field);
         }
 
-        public override RootField CreateRootField(long id, string name, Partitioning partitioning)
+        public override RootField CreateRootField(long id, string name, Partitioning partitioning, IFieldSettings settings = null)
         {
-            return Fields.Array(id, name, partitioning, this);
+            return Fields.Array(id, name, partitioning, this, settings);
         }
 
-        public override NestedField CreateNestedField(long id, string name)
+        public override NestedField CreateNestedField(long id, string name, IFieldSettings settings = null)
         {
             throw new NotSupportedException();
         }

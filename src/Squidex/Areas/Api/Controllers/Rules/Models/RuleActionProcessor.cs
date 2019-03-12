@@ -5,13 +5,14 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using NJsonSchema;
 using NSwag.SwaggerGeneration.Processors;
 using NSwag.SwaggerGeneration.Processors.Contexts;
 using Squidex.Domain.Apps.Core.Rules;
-using Squidex.Domain.Apps.Rules.Actions;
+using Squidex.Extensions.Actions;
 
 namespace Squidex.Areas.Api.Controllers.Rules.Models
 {
@@ -19,37 +20,41 @@ namespace Squidex.Areas.Api.Controllers.Rules.Models
     {
         public async Task ProcessAsync(DocumentProcessorContext context)
         {
-            var schema = context.SchemaResolver.GetSchema(typeof(RuleAction), false);
-
-            if (schema != null)
+            try
             {
-                var discriminator = new OpenApiDiscriminator
+                var schema = context.SchemaResolver.GetSchema(typeof(RuleAction), false);
+
+                if (schema != null)
                 {
-                    JsonInheritanceConverter = new JsonInheritanceConverter("actionType", typeof(RuleAction)),
-                    PropertyName = "actionType"
-                };
-
-                schema.DiscriminatorObject = discriminator;
-                schema.Properties["actionType"] = new JsonProperty
-                {
-                    Type = JsonObjectType.String,
-                    IsRequired = true
-                };
-
-                foreach (var derived in RuleActionRegistry.Actions)
-                {
-                    var derivedSchema = await context.SchemaGenerator.GenerateAsync(derived.Value, context.SchemaResolver);
-
-                    var oldName = context.Document.Definitions.FirstOrDefault(x => x.Value == derivedSchema).Key;
-
-                    if (oldName != null)
+                    schema.DiscriminatorObject = new OpenApiDiscriminator
                     {
-                        context.Document.Definitions.Remove(oldName);
-                        context.Document.Definitions.Add(derived.Key, derivedSchema);
-                    }
-                }
+                        JsonInheritanceConverter = new RuleActionConverter(), PropertyName = "actionType"
+                    };
 
-                RemoveFreezable(context, schema);
+                    schema.Properties["actionType"] = new JsonProperty
+                    {
+                        Type = JsonObjectType.String, IsRequired = true
+                    };
+
+                    foreach (var derived in RuleElementRegistry.Actions)
+                    {
+                        var derivedSchema = await context.SchemaGenerator.GenerateAsync(derived.Value.Type, context.SchemaResolver);
+
+                        var oldName = context.Document.Definitions.FirstOrDefault(x => x.Value == derivedSchema).Key;
+
+                        if (oldName != null)
+                        {
+                            context.Document.Definitions.Remove(oldName);
+                            context.Document.Definitions.Add(derived.Key, derivedSchema);
+                        }
+                    }
+
+                    RemoveFreezable(context, schema);
+                }
+            }
+            catch (KeyNotFoundException)
+            {
+                return;
             }
         }
 

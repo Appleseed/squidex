@@ -7,7 +7,12 @@
 
 import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
 
-import { fadeAnimation } from './../animations';
+import { fadeAnimation, StatefulComponent } from '@app/framework/internal';
+
+interface State {
+    hasTabs: boolean;
+    hasFooter: boolean;
+}
 
 @Component({
     selector: 'sqx-modal-dialog',
@@ -18,12 +23,18 @@ import { fadeAnimation } from './../animations';
     ],
     changeDetection: ChangeDetectionStrategy.Default
 })
-export class ModalDialogComponent implements AfterViewInit {
+export class ModalDialogComponent extends StatefulComponent<State> implements AfterViewInit {
     @Input()
     public showClose = true;
 
     @Input()
     public showHeader = true;
+
+    @Input()
+    public showFooter = true;
+
+    @Input()
+    public showTabs = true;
 
     @Input()
     public large = false;
@@ -41,23 +52,22 @@ export class ModalDialogComponent implements AfterViewInit {
     public closed = new EventEmitter();
 
     @ViewChild('tabsElement')
-    public tabsElement: ElementRef;
+    public tabsElement: ElementRef<ParentNode>;
 
     @ViewChild('footerElement')
-    public footerElement: ElementRef;
+    public footerElement: ElementRef<ParentNode>;
 
-    public showTabs = false;
-    public showFooter = false;
-
-    constructor(
-        private readonly changeDetector: ChangeDetectorRef
-    ) {
+    constructor(changeDetector: ChangeDetectorRef) {
+        super(changeDetector, {
+            hasTabs: false,
+            hasFooter: false
+        });
     }
 
     public ngAfterViewInit() {
-        this.showTabs = this.tabsElement.nativeElement.children.length > 0;
-        this.showFooter = this.footerElement.nativeElement.children.length > 0;
+        const hasTabs = this.tabsElement.nativeElement.children.length > 0;
+        const hasFooter = this.footerElement.nativeElement.children.length > 0;
 
-        this.changeDetector.detectChanges();
+        this.next(() => ({ hasTabs, hasFooter }));
     }
 }

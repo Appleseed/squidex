@@ -7,21 +7,19 @@
 
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using NSwag.Annotations;
+using Microsoft.Net.Http.Headers;
 using Squidex.Areas.Api.Controllers.Plans.Models;
 using Squidex.Domain.Apps.Entities.Apps.Services;
 using Squidex.Infrastructure.Commands;
 using Squidex.Pipeline;
+using Squidex.Shared;
 
 namespace Squidex.Areas.Api.Controllers.Plans
 {
     /// <summary>
     /// Manages and configures plans.
     /// </summary>
-    [ApiAuthorize]
-    [ApiExceptionFilter]
-    [AppApi]
-    [SwaggerTag(nameof(Plans))]
+    [ApiExplorerSettings(GroupName = nameof(Plans))]
     public sealed class AppPlansController : ApiController
     {
         private readonly IAppPlansProvider appPlansProvider;
@@ -44,10 +42,10 @@ namespace Squidex.Areas.Api.Controllers.Plans
         /// 200 => App plan information returned.
         /// 404 => App not found.
         /// </returns>
-        [MustBeAppOwner]
         [HttpGet]
         [Route("apps/{app}/plans/")]
         [ProducesResponseType(typeof(AppPlansDto), 200)]
+        [ApiPermission(Permissions.AppPlansRead)]
         [ApiCosts(0)]
         public IActionResult GetPlans(string app)
         {
@@ -55,7 +53,7 @@ namespace Squidex.Areas.Api.Controllers.Plans
 
             var response = AppPlansDto.FromApp(App, appPlansProvider, hasPortal);
 
-            Response.Headers["ETag"] = App.Version.ToString();
+            Response.Headers[HeaderNames.ETag] = App.Version.ToString();
 
             return Ok(response);
         }
@@ -66,16 +64,15 @@ namespace Squidex.Areas.Api.Controllers.Plans
         /// <param name="app">The name of the app.</param>
         /// <param name="request">Plan object that needs to be changed.</param>
         /// <returns>
-        /// 201 => Redirected to checkout page.
-        /// 204 => Plan changed.
+        /// 200 => Plan changed or redirect url returned.
         /// 400 => Plan not owned by user.
         /// 404 => App not found.
         /// </returns>
-        [MustBeAppOwner]
         [HttpPut]
         [Route("apps/{app}/plan/")]
         [ProducesResponseType(typeof(PlanChangedDto), 200)]
         [ProducesResponseType(typeof(ErrorDto), 400)]
+        [ApiPermission(Permissions.AppPlansChange)]
         [ApiCosts(0)]
         public async Task<IActionResult> ChangePlanAsync(string app, [FromBody] ChangePlanDto request)
         {
@@ -83,7 +80,7 @@ namespace Squidex.Areas.Api.Controllers.Plans
 
             string redirectUri = null;
 
-            if (context.Result<object>() is RedirectToCheckoutResult result)
+            if (context.PlainResult is RedirectToCheckoutResult result)
             {
                 redirectUri = result.Url.ToString();
             }

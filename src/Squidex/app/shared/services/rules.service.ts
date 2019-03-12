@@ -21,41 +21,16 @@ import {
     Versioned
 } from '@app/framework';
 
-export const ruleTriggers: any = {
-    'AssetChanged': {
-        name: 'Asset changed'
-    },
-    'ContentChanged': {
-        name: 'Content changed'
+export class RuleElementDto {
+    constructor(
+        public readonly display: string,
+        public readonly description: string,
+        public readonly iconColor: string,
+        public readonly iconImage: string,
+        public readonly readMore: string
+    ) {
     }
-};
-
-export const ruleActions: any = {
-    'Algolia': {
-        name: 'Populate Algolia Index'
-    },
-    'AzureQueue': {
-        name: 'Send to Azure Queue'
-    },
-    'ElasticSearch': {
-        name: 'Populate ElasticSearch Index'
-    },
-    'Fastly': {
-        name: 'Purge fastly Cache'
-    },
-    'Medium': {
-        name: 'Post to Medium'
-    },
-    'Slack': {
-        name: 'Send to Slack'
-    },
-    'Tweet': {
-        name: 'Tweet'
-    },
-    'Webhook': {
-        name: 'Send Webhook'
-    }
-};
+}
 
 export class RuleDto extends Model {
     constructor(
@@ -102,6 +77,10 @@ export class RuleEventDto extends Model {
     ) {
         super();
     }
+
+    public with(value: Partial<RuleEventDto>): RuleEventDto {
+        return this.clone(value);
+    }
 }
 
 export class CreateRuleDto {
@@ -127,6 +106,46 @@ export class RulesService {
         private readonly apiUrl: ApiUrlConfig,
         private readonly analytics: AnalyticsService
     ) {
+    }
+
+    public getActions(): Observable<{ [name: string]: RuleElementDto }> {
+        const url = this.apiUrl.buildUrl('api/rules/actions');
+
+        return HTTP.getVersioned<any>(this.http, url).pipe(
+            map(response => {
+                const items: { [name: string]: any } = response.payload.body;
+
+                const result: { [name: string]: RuleElementDto } = {};
+
+                for (let key of Object.keys(items).sort()) {
+                    const value = items[key];
+
+                    result[key] = new RuleElementDto(value.display, value.description, value.iconColor, value.iconImage, value.readMore);
+                }
+
+                return result;
+            }),
+            pretifyError('Failed to load Rules. Please reload.'));
+    }
+
+    public getTriggers(): Observable<{ [name: string]: RuleElementDto }> {
+        const url = this.apiUrl.buildUrl('api/rules/triggers');
+
+        return HTTP.getVersioned<any>(this.http, url).pipe(
+            map(response => {
+                const items: { [name: string]: any } = response.payload.body;
+
+                const result: { [name: string]: RuleElementDto } = {};
+
+                for (let key of Object.keys(items).sort()) {
+                    const value = items[key];
+
+                    result[key] = new RuleElementDto(value.display, value.description, value.iconColor, value.iconImage, value.readMore);
+                }
+
+                return result;
+            }),
+            pretifyError('Failed to load Rules. Please reload.'));
     }
 
     public getRules(appName: string): Observable<RuleDto[]> {
@@ -253,5 +272,15 @@ export class RulesService {
                 this.analytics.trackEvent('Rule', 'EventEnqueued', appName);
             }),
             pretifyError('Failed to enqueue rule event. Please reload.'));
+    }
+
+    public cancelEvent(appName: string, id: string): Observable<any> {
+        const url = this.apiUrl.buildUrl(`api/apps/${appName}/rules/events/${id}`);
+
+        return HTTP.deleteVersioned(this.http, url).pipe(
+            tap(() => {
+                this.analytics.trackEvent('Rule', 'EventDequeued', appName);
+            }),
+            pretifyError('Failed to cancel rule event. Please reload.'));
     }
 }

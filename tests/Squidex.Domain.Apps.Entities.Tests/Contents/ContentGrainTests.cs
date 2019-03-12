@@ -6,7 +6,6 @@
 // ==========================================================================
 
 using System;
-using System.Security.Claims;
 using System.Threading.Tasks;
 using FakeItEasy;
 using NodaTime;
@@ -30,23 +29,22 @@ using Xunit;
 
 namespace Squidex.Domain.Apps.Entities.Contents
 {
-    public class ContentGrainTests : HandlerTestBase<ContentGrain, ContentState>
+    public class ContentGrainTests : HandlerTestBase<ContentState>
     {
         private readonly ISchemaEntity schema = A.Fake<ISchemaEntity>();
         private readonly IScriptEngine scriptEngine = A.Fake<IScriptEngine>();
         private readonly IAppProvider appProvider = A.Fake<IAppProvider>();
         private readonly IAppEntity app = A.Fake<IAppEntity>();
-        private readonly ClaimsPrincipal user = new ClaimsPrincipal();
         private readonly LanguagesConfig languagesConfig = LanguagesConfig.Build(Language.DE);
 
         private readonly NamedContentData invalidData =
             new NamedContentData()
                 .AddField("my-field1",
                 new ContentFieldData()
-                        .AddValue(null))
+                        .AddValue("iv", null))
                 .AddField("my-field2",
                     new ContentFieldData()
-                        .AddValue(1));
+                        .AddValue("iv", 1));
         private readonly NamedContentData data =
             new NamedContentData()
                 .AddField("my-field1",
@@ -76,12 +74,21 @@ namespace Squidex.Domain.Apps.Entities.Contents
 
         public ContentGrainTests()
         {
+            var scripts = new SchemaScripts
+            {
+                Change = "<change-script>",
+                Create = "<create-script>",
+                Delete = "<delete-script>",
+                Update = "<update-script>"
+            };
+
             var schemaDef =
                  new Schema("my-schema")
                      .AddNumber(1, "my-field1", Partitioning.Invariant,
                          new NumberFieldProperties { IsRequired = true })
                      .AddNumber(2, "my-field2", Partitioning.Invariant,
-                         new NumberFieldProperties { IsRequired = false });
+                         new NumberFieldProperties { IsRequired = false })
+                    .ConfigureScripts(scripts);
 
             A.CallTo(() => app.LanguagesConfig).Returns(languagesConfig);
 
@@ -89,10 +96,6 @@ namespace Squidex.Domain.Apps.Entities.Contents
             A.CallTo(() => appProvider.GetAppWithSchemaAsync(AppId, SchemaId)).Returns((app, schema));
 
             A.CallTo(() => schema.SchemaDef).Returns(schemaDef);
-            A.CallTo(() => schema.ScriptCreate).Returns("<create-script>");
-            A.CallTo(() => schema.ScriptChange).Returns("<change-script>");
-            A.CallTo(() => schema.ScriptUpdate).Returns("<update-script>");
-            A.CallTo(() => schema.ScriptDelete).Returns("<delete-script>");
 
             A.CallTo(() => scriptEngine.ExecuteAndTransform(A<ScriptContext>.Ignored, A<string>.Ignored))
                 .ReturnsLazily(x => x.GetArgument<ScriptContext>(0).Data);
@@ -100,7 +103,7 @@ namespace Squidex.Domain.Apps.Entities.Contents
             patched = patch.MergeInto(data);
 
             sut = new ContentGrain(Store, A.Dummy<ISemanticLog>(), appProvider, A.Dummy<IAssetRepository>(), scriptEngine, A.Dummy<IContentRepository>());
-            sut.OnActivateAsync(Id).Wait();
+            sut.ActivateAsync(Id).Wait();
         }
 
         [Fact]
@@ -440,8 +443,6 @@ namespace Squidex.Domain.Apps.Entities.Contents
         [Fact]
         public async Task ChangeStatus_should_refresh_properties_and_revert_scheduling_when_invoked_by_scheduler()
         {
-            var dueTime = Instant.MaxValue;
-
             await ExecuteCreateAsync();
             await ExecuteScheduledAsync();
 

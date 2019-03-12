@@ -12,10 +12,11 @@ using NodaTime;
 using Squidex.Domain.Apps.Entities.Assets;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Reflection;
+using Squidex.Pipeline;
 
 namespace Squidex.Areas.Api.Controllers.Assets.Models
 {
-    public sealed class AssetDto
+    public sealed class AssetDto : IGenerateETag
     {
         /// <summary>
         /// The id of the asset.

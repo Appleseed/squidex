@@ -11,8 +11,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MongoDB.Driver;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.Diagnostics;
 using Squidex.Infrastructure.EventSourcing;
 using Squidex.Infrastructure.EventSourcing.Grains;
+using Squidex.Infrastructure.Json;
 using Squidex.Infrastructure.States;
 
 namespace Squidex.Config.Domain
@@ -35,7 +37,6 @@ namespace Squidex.Config.Domain
 
                             return new MongoEventStore(mongDatabase, c.GetRequiredService<IEventNotifier>());
                         })
-                        .As<IInitializable>()
                         .As<IEventStore>();
                 },
                 ["GetEventStore"] = () =>
@@ -46,9 +47,14 @@ namespace Squidex.Config.Domain
 
                     var connection = EventStoreConnection.Create(eventStoreConfiguration);
 
-                    services.AddSingletonAs(c => new GetEventStore(connection, eventStorePrefix, eventStoreProjectionHost))
-                        .As<IInitializable>()
+                    services.AddSingletonAs(connection)
+                        .As<IEventStoreConnection>();
+
+                    services.AddSingletonAs(c => new GetEventStore(connection, c.GetRequiredService<IJsonSerializer>(), eventStorePrefix, eventStoreProjectionHost))
                         .As<IEventStore>();
+
+                    services.AddHealthChecks()
+                        .AddCheck<GetEventStoreHealthCheck>("EventStore", tags: new[] { "node" });
                 }
             });
 

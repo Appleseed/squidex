@@ -19,16 +19,13 @@ namespace Squidex.Config.Domain
     {
         public static void AddMySubscriptionServices(this IServiceCollection services, IConfiguration config)
         {
-            services.AddSingletonAs(c => c.GetService<IOptions<MyUsageOptions>>()?.Value?.Plans.OrEmpty());
+            services.AddSingletonAs(c => c.GetRequiredService<IOptions<MyUsageOptions>>()?.Value?.Plans.OrEmpty());
 
             services.AddSingletonAs<ConfigAppPlansProvider>()
                 .As<IAppPlansProvider>();
 
             services.AddSingletonAs<NoopAppPlanBillingManager>()
                 .As<IAppPlanBillingManager>();
-
-            services.AddSingletonAs<AssetUserPictureStore>()
-                .As<IUserPictureStore>();
 
             services.AddSingletonAs<NoopUserEvents>()
                 .As<IUserEvents>();

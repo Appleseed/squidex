@@ -13,6 +13,14 @@ namespace Squidex.Config
 
         public string AdminPassword { get; set; }
 
+        public string AdminClientId { get; set; }
+
+        public string AdminClientSecret { get; set; }
+
+        public string GithubClient { get; set; }
+
+        public string GithubSecret { get; set; }
+
         public string GoogleClient { get; set; }
 
         public string GoogleSecret { get; set; }
@@ -44,9 +52,19 @@ namespace Squidex.Config
             return !string.IsNullOrWhiteSpace(AdminEmail) && !string.IsNullOrWhiteSpace(AdminPassword);
         }
 
+        public bool IsAdminClientConfigured()
+        {
+            return !string.IsNullOrWhiteSpace(AdminClientId) && !string.IsNullOrWhiteSpace(AdminClientSecret);
+        }
+
         public bool IsOidcConfigured()
         {
             return !string.IsNullOrWhiteSpace(OidcAuthority) && !string.IsNullOrWhiteSpace(OidcClient) && !string.IsNullOrWhiteSpace(OidcSecret);
+        }
+
+        public bool IsGithubAuthConfigured()
+        {
+            return !string.IsNullOrWhiteSpace(GithubClient) && !string.IsNullOrWhiteSpace(GithubSecret);
         }
 
         public bool IsGoogleAuthConfigured()

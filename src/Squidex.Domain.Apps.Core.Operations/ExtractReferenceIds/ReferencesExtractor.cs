@@ -8,21 +8,21 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Newtonsoft.Json.Linq;
 using Squidex.Domain.Apps.Core.Schemas;
+using Squidex.Infrastructure.Json.Objects;
 
 namespace Squidex.Domain.Apps.Core.ExtractReferenceIds
 {
     public sealed class ReferencesExtractor : IFieldVisitor<IEnumerable<Guid>>
     {
-        private readonly JToken value;
+        private readonly IJsonValue value;
 
-        private ReferencesExtractor(JToken value)
+        private ReferencesExtractor(IJsonValue value)
         {
             this.value = value;
         }
 
-        public static IEnumerable<Guid> ExtractReferences(IField field, JToken value)
+        public static IEnumerable<Guid> ExtractReferences(IField field, IJsonValue value)
         {
             return field.Accept(new ReferencesExtractor(value));
         }
@@ -31,15 +31,15 @@ namespace Squidex.Domain.Apps.Core.ExtractReferenceIds
         {
             var result = new List<Guid>();
 
-            if (value is JArray items)
+            if (value is JsonArray array)
             {
-                foreach (JObject item in value)
+                foreach (JsonObject item in array)
                 {
                     foreach (var nestedField in field.Fields)
                     {
-                        if (item.TryGetValue(nestedField.Name, out var value))
+                        if (item.TryGetValue(nestedField.Name, out var nestedValue))
                         {
-                            result.AddRange(nestedField.Accept(new ReferencesExtractor(value)));
+                            result.AddRange(nestedField.Accept(new ReferencesExtractor(nestedValue)));
                         }
                     }
                 }

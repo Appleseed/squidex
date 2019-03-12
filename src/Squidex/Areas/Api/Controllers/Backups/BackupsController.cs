@@ -7,27 +7,23 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using NSwag.Annotations;
 using Orleans;
 using Squidex.Areas.Api.Controllers.Backups.Models;
 using Squidex.Domain.Apps.Entities.Backup;
+using Squidex.Infrastructure;
 using Squidex.Infrastructure.Commands;
 using Squidex.Infrastructure.Tasks;
 using Squidex.Pipeline;
+using Squidex.Shared;
 
 namespace Squidex.Areas.Api.Controllers.Backups
 {
     /// <summary>
-    /// Manages backups for app.
+    /// Manages backups for apps.
     /// </summary>
-    [ApiAuthorize]
-    [ApiExceptionFilter]
-    [AppApi]
-    [MustBeAppOwner]
-    [SwaggerTag(nameof(Backups))]
+    [ApiExplorerSettings(GroupName = nameof(Backups))]
     public class BackupsController : ApiController
     {
         private readonly IGrainFactory grainFactory;
@@ -49,14 +45,15 @@ namespace Squidex.Areas.Api.Controllers.Backups
         [HttpGet]
         [Route("apps/{app}/backups/")]
         [ProducesResponseType(typeof(List<BackupJobDto>), 200)]
+        [ApiPermission(Permissions.AppBackupsRead)]
         [ApiCosts(0)]
         public async Task<IActionResult> GetJobs(string app)
         {
-            var backupGrain = grainFactory.GetGrain<IBackupGrain>(App.Id);
+            var backupGrain = grainFactory.GetGrain<IBackupGrain>(AppId);
 
             var jobs = await backupGrain.GetStateAsync();
 
-            var response = jobs.Value.Select(BackupJobDto.FromBackup).ToList();
+            var response = jobs.Value.ToArray(BackupJobDto.FromBackup);
 
             return Ok(response);
         }
@@ -72,10 +69,11 @@ namespace Squidex.Areas.Api.Controllers.Backups
         [HttpPost]
         [Route("apps/{app}/backups/")]
         [ProducesResponseType(typeof(List<BackupJobDto>), 200)]
+        [ApiPermission(Permissions.AppBackupsCreate)]
         [ApiCosts(0)]
         public IActionResult PostBackup(string app)
         {
-            var backupGrain = grainFactory.GetGrain<IBackupGrain>(App.Id);
+            var backupGrain = grainFactory.GetGrain<IBackupGrain>(AppId);
 
             backupGrain.RunAsync().Forget();
 
@@ -94,10 +92,11 @@ namespace Squidex.Areas.Api.Controllers.Backups
         [HttpDelete]
         [Route("apps/{app}/backups/{id}")]
         [ProducesResponseType(typeof(List<BackupJobDto>), 200)]
+        [ApiPermission(Permissions.AppBackupsDelete)]
         [ApiCosts(0)]
         public async Task<IActionResult> DeleteBackup(string app, Guid id)
         {
-            var backupGrain = grainFactory.GetGrain<IBackupGrain>(App.Id);
+            var backupGrain = grainFactory.GetGrain<IBackupGrain>(AppId);
 
             await backupGrain.DeleteAsync(id);
 

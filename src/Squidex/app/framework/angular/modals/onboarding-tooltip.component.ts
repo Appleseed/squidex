@@ -5,12 +5,14 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { Component, Input, OnDestroy, OnInit, Renderer2 } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, OnDestroy, OnInit, Renderer2 } from '@angular/core';
+import { timer } from 'rxjs';
 
 import {
     fadeAnimation,
     ModalModel,
     OnboardingService,
+    StatefulComponent,
     Types
 } from '@app/framework/internal';
 
@@ -20,20 +22,15 @@ import {
     templateUrl: './onboarding-tooltip.component.html',
     animations: [
         fadeAnimation
-    ]
+    ],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class OnboardingTooltipComponent implements OnDestroy, OnInit {
-    private showTimer: any;
-    private closeTimer: any;
-    private forMouseDownListener: Function | null;
-
-    public tooltipModal = new ModalModel();
-
+export class OnboardingTooltipComponent extends StatefulComponent implements OnDestroy, OnInit {
     @Input()
     public for: any;
 
     @Input()
-    public id: string;
+    public helpId: string;
 
     @Input()
     public after = 1000;
@@ -41,53 +38,52 @@ export class OnboardingTooltipComponent implements OnDestroy, OnInit {
     @Input()
     public position = 'left';
 
-    constructor(
+    public tooltipModal = new ModalModel();
+
+    constructor(changeDetector: ChangeDetectorRef,
         private readonly onboardingService: OnboardingService,
         private readonly renderer: Renderer2
     ) {
+        super(changeDetector, {});
     }
 
     public ngOnDestroy() {
-        clearTimeout(this.showTimer);
-        clearTimeout(this.closeTimer);
+        super.ngOnDestroy();
 
         this.tooltipModal.hide();
-
-        if (this.forMouseDownListener) {
-            this.forMouseDownListener();
-            this.forMouseDownListener = null;
-        }
     }
 
     public ngOnInit() {
-        if (this.for && this.id && Types.isFunction(this.for.addEventListener)) {
-            this.showTimer = setTimeout(() => {
-                if (this.onboardingService.shouldShow(this.id)) {
-                    const forRect = this.for.getBoundingClientRect();
+        if (this.for && this.helpId && Types.isFunction(this.for.addEventListener)) {
+            this.own(
+                timer(this.after).subscribe(() => {
+                    if (this.onboardingService.shouldShow(this.helpId)) {
+                        const forRect = this.for.getBoundingClientRect();
 
-                    const x = forRect.left + 0.5 * forRect.width;
-                    const y = forRect.top  + 0.5 * forRect.height;
+                        const x = forRect.left + 0.5 * forRect.width;
+                        const y = forRect.top  + 0.5 * forRect.height;
 
-                    const fromPoint = document.elementFromPoint(x, y);
+                        const fromPoint = document.elementFromPoint(x, y);
 
-                    if (this.isSameOrParent(fromPoint)) {
-                        this.tooltipModal.show();
+                        if (this.isSameOrParent(fromPoint)) {
+                            this.tooltipModal.show();
 
-                        this.closeTimer = setTimeout(() => {
-                            this.hideThis();
-                        }, 10000);
+                            this.own(
+                                timer(10000).subscribe(() => {
+                                    this.hideThis();
+                                }));
 
-                        this.onboardingService.disable(this.id);
+                            this.onboardingService.disable(this.helpId);
+                        }
                     }
-                }
-            }, this.after);
+                }));
 
-            this.forMouseDownListener =
+            this.own(
                 this.renderer.listen(this.for, 'mousedown', () => {
-                    this.onboardingService.disable(this.id);
+                    this.onboardingService.disable(this.helpId);
 
                     this.hideThis();
-                });
+                }));
         }
     }
 
@@ -102,14 +98,14 @@ export class OnboardingTooltipComponent implements OnDestroy, OnInit {
     }
 
     public hideThis() {
-        this.onboardingService.disable(this.id);
+        this.onboardingService.disable(this.helpId);
 
-        this.ngOnDestroy();
+        this.unsubscribeAll();
     }
 
     public hideAll() {
         this.onboardingService.disableAll();
 
-        this.ngOnDestroy();
+        this.unsubscribeAll();
     }
 }

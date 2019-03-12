@@ -7,23 +7,19 @@
 
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Host, Input, OnChanges, OnDestroy, Optional } from '@angular/core';
 import { AbstractControl, FormGroupDirective } from '@angular/forms';
-import { merge, Subscription } from 'rxjs';
+import { merge } from 'rxjs';
 
-import { fadeAnimation, Types } from '@app/framework/internal';
+import {
+    fadeAnimation,
+    StatefulComponent,
+    Types
+} from '@app/framework/internal';
 
-const DEFAULT_ERRORS: { [key: string]: string } = {
-    required: '{field} is required.',
-    pattern: '{field} does not follow the pattern.',
-    patternmessage: '{message}',
-    minvalue: '{field} must be larger than {minValue}.',
-    maxvalue: '{field} must be smaller than {maxValue}.',
-    minmax: '{field} must have a length of more than {requiredLength}.',
-    maxlength: '{field} must have a length of less than {requiredLength}.',
-    match: '{message}',
-    validdatetime: '{field} is not a valid date time',
-    validnumber: '{field} is not a valid number.',
-    validvalues: '{field} is not a valid value.'
-};
+import { formatError } from './error-formatting';
+
+interface State {
+    errorMessages: string[];
+}
 
 @Component({
     selector: 'sqx-control-errors',
@@ -34,10 +30,9 @@ const DEFAULT_ERRORS: { [key: string]: string } = {
     ],
     changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class ControlErrorsComponent implements OnChanges, OnDestroy {
+export class ControlErrorsComponent extends StatefulComponent<State> implements OnChanges, OnDestroy {
     private displayFieldName: string;
     private control: AbstractControl;
-    private controlSubscription: Subscription | null = null;
     private originalMarkAsTouched: any;
 
     @Input()
@@ -55,16 +50,20 @@ export class ControlErrorsComponent implements OnChanges, OnDestroy {
     @Input()
     public submitOnly = false;
 
-    public errorMessages: string[] = [];
-
-    constructor(
-        @Optional() @Host() private readonly formGroupDirective: FormGroupDirective,
-        private readonly changeDetector: ChangeDetectorRef
+    constructor(changeDetector: ChangeDetectorRef,
+        @Optional() @Host() private readonly formGroupDirective: FormGroupDirective
     ) {
+        super(changeDetector, {
+            errorMessages: []
+        });
     }
 
     public ngOnDestroy() {
-        this.unsubscribe();
+        super.ngOnDestroy();
+
+        if (this.control && this.originalMarkAsTouched) {
+            this.control['markAsTouched'] = this.originalMarkAsTouched;
+        }
     }
 
     public ngOnChanges() {
@@ -87,16 +86,16 @@ export class ControlErrorsComponent implements OnChanges, OnDestroy {
         }
 
         if (this.control !== control) {
-            this.unsubscribe();
+            this.unsubscribeAll();
 
             this.control = control;
 
             if (control) {
-                this.controlSubscription =
+                this.own(
                     merge(control.valueChanges, control.statusChanges)
                         .subscribe(() => {
                             this.createMessages();
-                        });
+                        }));
 
                 this.originalMarkAsTouched = this.control.markAsTouched;
 
@@ -113,45 +112,23 @@ export class ControlErrorsComponent implements OnChanges, OnDestroy {
         this.createMessages();
     }
 
-    private unsubscribe() {
-        if (this.controlSubscription) {
-            this.controlSubscription.unsubscribe();
-        }
-
-        if (this.control && this.originalMarkAsTouched) {
-            this.control['markAsTouched'] = this.originalMarkAsTouched;
-        }
-    }
-
     private createMessages() {
         const errors: string[] = [];
 
         if (this.control && this.control.invalid && ((this.control.touched && !this.submitOnly) || this.submitted) && this.control.errors) {
             for (let key in <any>this.control.errors) {
                 if (this.control.errors.hasOwnProperty(key)) {
-                    let message = (this.errors ? this.errors[key] : null) || DEFAULT_ERRORS[key.toLowerCase()];
+                    const message = formatError(this.displayFieldName, key, this.control.errors[key], this.control.value, this.errors);
 
-                    if (!message) {
-                        continue;
+                    if (message) {
+                        errors.push(message);
                     }
-
-                    const properties = this.control.errors[key];
-
-                    for (let property in properties) {
-                        if (properties.hasOwnProperty(property)) {
-                            message = message.replace(`{${property}}`, properties[property]);
-                        }
-                    }
-
-                    message = message.replace('{field}', this.displayFieldName);
-
-                    errors.push(message);
                 }
             }
         }
 
-        this.errorMessages = errors;
-
-        this.changeDetector.detectChanges();
+        if (errors.length !== this.snapshot.errorMessages.length || errors.length > 0) {
+            this.next(s => ({ ...s, errorMessages: errors }));
+        }
     }
 }

@@ -6,11 +6,11 @@
     </ng-container>
 
     <ng-container menu>
-        <button type="button" class="btn btn-link btn-export mr-1" (click)="exportSchemaDialog.show()">
+        <button type="button" class="btn btn-text mr-1" (click)="exportSchemaDialog.show()">
             JSON Preview
         </button>
 
-        <div class="btn-group mr-1" data-toggle="buttons" #buttonPublish>
+        <div class="btn-group mr-1" #buttonPublish>
             <button type="button" class="btn btn-publishing btn-toggle" [class.btn-success]="schema.isPublished" [disabled]="schema.isPublished" (click)="publish()">
                 Published
             </button>
@@ -20,17 +20,24 @@
         </div>
 
         <div class="dropdown dropdown-options">
-            <button type="button" class="btn btn-link btn-secondary ml-1" (click)="editOptionsDropdown.toggle()" [class.active]="editOptionsDropdown.isOpen | async" #buttonOptions>
+            <button type="button" class="btn btn-text-secondary ml-1" (click)="editOptionsDropdown.toggle()" [class.active]="editOptionsDropdown.isOpen | async" #buttonOptions>
                 <i class="icon-dots"></i>
             </button>
-            <div class="dropdown-menu" *sqxModalView="editOptionsDropdown" [sqxModalTarget]="buttonOptions" @fade>
+            <div class="dropdown-menu" *sqxModalView="editOptionsDropdown;closeAlways:true" [sqxModalTarget]="buttonOptions" @fade>
                 <a class="dropdown-item" (click)="configureScriptsDialog.show()">
-                    Scripts
+                    Edit Scripts
                 </a>
+                <a class="dropdown-item" (click)="configurePreviewUrlsDialog.show()">
+                    Edit Preview Urls
+                </a>
+                
+                <div class="dropdown-divider"></div>
 
                 <a class="dropdown-item" (click)="cloneSchema()">
                     Clone
                 </a>
+                
+                <div class="dropdown-divider"></div>
 
                 <a class="dropdown-item dropdown-item-delete" 
                     (sqxConfirmClick)="deleteSchema()" 
@@ -41,11 +48,11 @@
             </div>
         </div>
 
-        <sqx-onboarding-tooltip id="history" [for]="buttonOptions" position="bottomRight" after="60000">
+        <sqx-onboarding-tooltip helpId="history" [for]="buttonOptions" position="bottom-right" after="60000">
             Open the context menu to delete the schema or to create some scripts for content changes.
         </sqx-onboarding-tooltip>
 
-        <sqx-onboarding-tooltip id="history" [for]="buttonPublish" position="bottomRight" after="240000">
+        <sqx-onboarding-tooltip helpId="history" [for]="buttonPublish" position="bottom-right" after="240000">
             Note, that you have to publish the schema before you can add content to it.
         </sqx-onboarding-tooltip>
     </ng-container>
@@ -54,28 +61,32 @@
         <div class="table-items-row table-items-row-empty" *ngIf="schema && schema.fields.length === 0">
             No field created yet.
             
-            <button class="btn btn-success btn-sm ml-2" (click)="addFieldDialog.show()">
+            <button type="button" class="btn btn-success btn-sm ml-2" (click)="addFieldDialog.show()">
                 <i class="icon icon-plus"></i> Add Field
             </button>
         </div>
 
         <ng-container *ngIf="patternsState.patterns | async; let patterns">
-            <div class="schemas" [sqxSortModel]="schema.fields" (sqxSorted)="sortFields($event)">
-                <div *ngFor="let field of schema.fields; trackBy: trackByField">
+            <div class="schemas"
+                [sqxSortModel]="schema.fields"
+                (sqxSorted)="sortFields($event)">
+                <div *ngFor="let field of schema.fields; trackBy: trackByField.bind(this)">
                     <sqx-field [field]="field" [schema]="schema" [patterns]="patterns"></sqx-field>
                 </div>
             </div>
     
-            <button class="btn btn-success field-button" (click)="addFieldDialog.show()">
+            <button type="button" class="btn btn-success field-button" (click)="addFieldDialog.show()">
                 <i class="icon icon-plus field-button-icon"></i> <div class="field-button-text">Add Field</div>
             </button>
         </ng-container>
     </ng-container>
 
     <ng-container sidebar>
-        <a class="panel-link" routerLink="help" routerLinkActive="active">
-            <i class="icon-help"></i>
-        </a>
+        <div class="panel-nav">        
+            <a class="panel-link" routerLink="help" routerLinkActive="active" title="Help" titlePosition="left">
+                <i class="icon-help"></i>
+            </a>
+        </div>
     </ng-container>
 </sqx-panel>
 
@@ -99,14 +110,22 @@
     </sqx-schema-scripts-form>
 </ng-container>
 
+<ng-container *sqxModalView="configurePreviewUrlsDialog;onRoot:true">
+    <sqx-schema-preview-urls-form [schema]="schema"
+        (completed)="configurePreviewUrlsDialog.hide()">
+    </sqx-schema-preview-urls-form>
+</ng-container>
+
 <ng-container *sqxModalView="exportSchemaDialog;onRoot:true">
-    <sqx-modal-dialog (closed)="exportSchemaDialog.hide()">
+    <sqx-modal-dialog (closed)="exportSchemaDialog.hide()" large="true">
         <ng-container title>
             Export Schema
         </ng-container>
 
         <ng-container content>
-            <sqx-json-editor disabled [ngModel]="schemaExport"></sqx-json-editor>
+            <div class="json-preview">
+                <sqx-json-editor disabled [ngModel]="schemaExport"></sqx-json-editor>
+            </div>
         </ng-container>
     </sqx-modal-dialog>
 </ng-container>

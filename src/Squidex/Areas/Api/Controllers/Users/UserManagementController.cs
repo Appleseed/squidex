@@ -10,28 +10,23 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using NSwag.Annotations;
 using Squidex.Areas.Api.Controllers.Users.Models;
 using Squidex.Domain.Users;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Commands;
 using Squidex.Infrastructure.Security;
 using Squidex.Pipeline;
-using Squidex.Shared.Users;
+using Squidex.Shared;
 
 namespace Squidex.Areas.Api.Controllers.Users
 {
-    [ApiAuthorize]
-    [ApiExceptionFilter]
     [ApiModelValidation(true)]
-    [MustBeAdministrator]
-    [SwaggerIgnore]
     public sealed class UserManagementController : ApiController
     {
-        private readonly UserManager<IUser> userManager;
+        private readonly UserManager<IdentityUser> userManager;
         private readonly IUserFactory userFactory;
 
-        public UserManagementController(ICommandBus commandBus, UserManager<IUser> userManager, IUserFactory userFactory)
+        public UserManagementController(ICommandBus commandBus, UserManager<IdentityUser> userManager, IUserFactory userFactory)
             : base(commandBus)
         {
             this.userManager = userManager;
@@ -40,7 +35,7 @@ namespace Squidex.Areas.Api.Controllers.Users
 
         [HttpGet]
         [Route("user-management/")]
-        [ApiCosts(0)]
+        [ApiPermission(Permissions.AdminUsersRead)]
         public async Task<IActionResult> GetUsers([FromQuery] string query = null, [FromQuery] int skip = 0, [FromQuery] int take = 10)
         {
             var taskForItems = userManager.QueryByEmailAsync(query, take, skip);
@@ -59,10 +54,10 @@ namespace Squidex.Areas.Api.Controllers.Users
 
         [HttpGet]
         [Route("user-management/{id}/")]
-        [ApiCosts(0)]
+        [ApiPermission(Permissions.AdminUsersRead)]
         public async Task<IActionResult> GetUser(string id)
         {
-            var entity = await userManager.FindByIdAsync(id);
+            var entity = await userManager.FindByIdWithClaimsAsync(id);
 
             if (entity == null)
             {
@@ -76,10 +71,10 @@ namespace Squidex.Areas.Api.Controllers.Users
 
         [HttpPost]
         [Route("user-management/")]
-        [ApiCosts(0)]
+        [ApiPermission(Permissions.AdminUsersCreate)]
         public async Task<IActionResult> PostUser([FromBody] CreateUserDto request)
         {
-            var user = await userManager.CreateAsync(userFactory, request.Email, request.DisplayName, request.Password);
+            var user = await userManager.CreateAsync(userFactory, request.ToValues());
 
             var response = new UserCreatedDto { Id = user.Id };
 
@@ -88,17 +83,17 @@ namespace Squidex.Areas.Api.Controllers.Users
 
         [HttpPut]
         [Route("user-management/{id}/")]
-        [ApiCosts(0)]
+        [ApiPermission(Permissions.AdminUsersUpdate)]
         public async Task<IActionResult> PutUser(string id, [FromBody] UpdateUserDto request)
         {
-            await userManager.UpdateAsync(id, request.Email, request.DisplayName, request.Password);
+            await userManager.UpdateAsync(id, request.ToValues());
 
             return NoContent();
         }
 
         [HttpPut]
         [Route("user-management/{id}/lock/")]
-        [ApiCosts(0)]
+        [ApiPermission(Permissions.AdminUsersLock)]
         public async Task<IActionResult> LockUser(string id)
         {
             if (IsSelf(id))
@@ -113,7 +108,7 @@ namespace Squidex.Areas.Api.Controllers.Users
 
         [HttpPut]
         [Route("user-management/{id}/unlock/")]
-        [ApiCosts(0)]
+        [ApiPermission(Permissions.AdminUsersUnlock)]
         public async Task<IActionResult> UnlockUser(string id)
         {
             if (IsSelf(id))

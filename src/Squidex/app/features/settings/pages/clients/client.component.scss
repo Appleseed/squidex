@@ -3,6 +3,29 @@
 
 $color-editor: #eceeef;
 
+.card {
+    & {
+        @include border-radius(0);
+        border-bottom-width: 2px;
+        border-top-width: 0;
+        margin-bottom: .25rem;
+    }
+
+    &-header {
+        & {
+            margin-bottom: .5rem;
+        }
+    }
+}
+
+.col-name {
+    &:hover {
+        .client-edit {
+            display: inline-block;
+        }
+    }
+}
+
 .client {
     &-info {
         margin: 0;
@@ -10,12 +33,6 @@ $color-editor: #eceeef;
 
     &-delete {
         vertical-align: top;
-    }
-
-    &-expires {
-        font-size: .8rem;
-        font-weight: normal;
-        margin-bottom: .75rem;
     }
 
     &-edit {
@@ -35,41 +52,29 @@ $color-editor: #eceeef;
         font-size: 1.2rem;
         font-weight: normal;
         line-height: 1.5rem;
+        border-top: 1px solid transparent;
+        border-bottom: 1px solid transparent;
         display: inline-block;
         margin: 0;
     }
-
-    &-header {
-        &:hover {
-            .client-edit {
-                display: inline-block;
-            }
-        }
-    }
 }
 
-h3 {
-    &.client-name {
-        border-top: 1px solid transparent;
-        border-bottom: 1px solid transparent;
-    }
-}
-
-.col-form-label {
-    text-align: left;
-}
-
-.form-check {
-    padding: .5rem 0 0;
-}
-
-.form-check-label {
+.no-padding {
     padding: 0;
 }
 
+.cell-actions {
+    width: 3.2rem;
+}
+
+.cell-input {
+    padding-right: 0;
+}
+
 .access-token {
-    height: 18rem;
+    height: 10rem;
     font-size: 1rem;
     font-weight: normal;
     font-family: monospace;
+    resize: none;
 }

@@ -27,7 +27,7 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards
 
                 if (command.Properties == null)
                 {
-                    e("Properties is required.", nameof(command.Properties));
+                   e(Not.Defined("Properties"), nameof(command.Properties));
                 }
                 else
                 {
@@ -42,19 +42,19 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards
 
                     if (arrayField.FieldsByName.ContainsKey(command.Name))
                     {
-                        e($"A field with the same name already exists.");
+                        e("A field with the same name already exists.");
                     }
                 }
                 else
                 {
                     if (command.ParentFieldId == null && !command.Partitioning.IsValidPartitioning())
                     {
-                        e("Partitioning is not valid.", nameof(command.Partitioning));
+                        e(Not.Valid("Partitioning"), nameof(command.Partitioning));
                     }
 
                     if (schema.FieldsByName.ContainsKey(command.Name))
                     {
-                        e($"A field with the same name already exists.");
+                        e("A field with the same name already exists.");
                     }
                 }
             });
@@ -75,7 +75,7 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards
             {
                 if (command.Properties == null)
                 {
-                    e("Properties is required.", nameof(command.Properties));
+                   e(Not.Defined("Properties"), nameof(command.Properties));
                 }
                 else
                 {

@@ -8,9 +8,14 @@
 import { Component, Input, OnInit } from '@angular/core';
 import { FormControl, FormGroup } from '@angular/forms';
 import { Observable } from 'rxjs';
-import { map, startWith } from 'rxjs/operators';
 
-import { FieldDto, NumberFieldPropertiesDto } from '@app/shared';
+import {
+    FieldDto,
+    hasNoValue$,
+    NumberFieldPropertiesDto,
+    RootFieldDto,
+    Types
+} from '@app/shared';
 
 @Component({
     selector: 'sqx-number-validation',
@@ -27,9 +32,18 @@ export class NumberValidationComponent implements OnInit {
     @Input()
     public properties: NumberFieldPropertiesDto;
 
+    public showUnique: boolean;
+
     public showDefaultValue: Observable<boolean>;
 
     public ngOnInit() {
+        this.showUnique = Types.is(this.field, RootFieldDto) && !this.field.isLocalizable;
+
+        if (this.showUnique) {
+            this.editForm.setControl('isUnique',
+                new FormControl(this.properties.isUnique));
+        }
+
         this.editForm.setControl('maxValue',
             new FormControl(this.properties.maxValue));
 
@@ -40,7 +54,6 @@ export class NumberValidationComponent implements OnInit {
             new FormControl(this.properties.defaultValue));
 
         this.showDefaultValue =
-            this.editForm.controls['isRequired'].valueChanges.pipe(
-                startWith(this.properties.isRequired), map(x => !x));
+            hasNoValue$(this.editForm.controls['isRequired']);
     }
 }

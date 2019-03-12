@@ -5,7 +5,18 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { Directive, ElementRef, EventEmitter, HostListener, Output, Renderer2 } from '@angular/core';
+// tslint:disable:prefer-for-of
+
+import { Directive, ElementRef, EventEmitter, HostListener, Input, Output, Renderer2 } from '@angular/core';
+
+import { Types } from './../../utils/types';
+
+const ImageTypes = [
+    'image/jpeg',
+    'image/png',
+    'image/jpg',
+    'image/gif'
+];
 
 @Directive({
     selector: '[sqxFileDrop]'
@@ -13,13 +24,45 @@ import { Directive, ElementRef, EventEmitter, HostListener, Output, Renderer2 } 
 export class FileDropDirective {
     private dragCounter = 0;
 
+    @Input()
+    public allowedFiles: string[];
+
+    @Input()
+    public onlyImages: boolean;
+
+    @Input()
+    public noDrop: boolean;
+
     @Output('sqxFileDrop')
-    public drop = new EventEmitter<FileList>();
+    public drop = new EventEmitter<File[]>();
 
     constructor(
         private readonly element: ElementRef,
         private readonly renderer: Renderer2
     ) {
+    }
+
+    @HostListener('paste', ['$event'])
+    public onPaste(event: ClipboardEvent) {
+        if (this.noDrop) {
+            return;
+        }
+
+        const result: File[] = [];
+
+        for (let i = 0; i < event.clipboardData.items.length; i++) {
+            const file = event.clipboardData.items[i].getAsFile();
+
+            if (this.isAllowedFile(file)) {
+                result.push(file!);
+            }
+        }
+
+        if (result.length > 0) {
+            this.drop.emit(result);
+        }
+
+        this.stopEvent(event);
     }
 
     @HostListener('dragend', ['$event'])
@@ -55,7 +98,19 @@ export class FileDropDirective {
         const hasFiles = this.hasFiles(event.dataTransfer.types);
 
         if (hasFiles) {
-            this.drop.emit(event.dataTransfer.files);
+            const result: File[] = [];
+
+            for (let i = 0; i < event.dataTransfer.files.length; i++) {
+                const file = event.dataTransfer.files.item(i);
+
+                if (this.isAllowedFile(file)) {
+                    result.push(file!);
+                }
+            }
+
+            if (result.length > 0) {
+                this.drop.emit(result);
+            }
 
             this.dragEnd(0);
             this.stopEvent(event);
@@ -83,23 +138,23 @@ export class FileDropDirective {
         }
     }
 
+    private isAllowedFile(file: File | null) {
+        return file && (!this.allowedFiles || this.allowedFiles.indexOf(file.type) >= 0) && (!this.onlyImages || ImageTypes.indexOf(file.type) >= 0);
+    }
+
     private hasFiles(types: any): boolean {
         if (!types) {
             return false;
         }
 
-        if (isFunction(types.indexOf)) {
+        if (Types.isFunction(types.indexOf)) {
             return types.indexOf('Files') !== -1;
-        } else if (isFunction(types.contains)) {
+        } else if (Types.isFunction(types.contains)) {
             return types.contains('Files');
         } else {
             return false;
         }
     }
-}
-
-function isFunction(obj: any): boolean {
-    return !!(obj && obj.constructor && obj.call && obj.apply);
 }
 
 interface DragDropEvent extends MouseEvent {

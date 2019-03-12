@@ -7,8 +7,10 @@
 
 using System;
 using System.IO;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Net.Http.Headers;
 
 namespace Squidex.Areas.Frontend.Middlewares
 {
@@ -16,8 +18,8 @@ namespace Squidex.Areas.Frontend.Middlewares
     {
         private const string Host = "localhost";
         private const string Port = "3000";
-        private static readonly string[] Scripts = { "shims.js", "app.js" };
-        private static readonly string[] Styles = new string[0];
+        private static readonly string[] Scripts = { "shims", "app" };
+        private static readonly string[] Styles = Array.Empty<string>();
         private readonly RequestDelegate next;
 
         public WebpackMiddleware(RequestDelegate next)
@@ -27,18 +29,18 @@ namespace Squidex.Areas.Frontend.Middlewares
 
         public async Task Invoke(HttpContext context)
         {
-            var buffer = new MemoryStream();
-            var body = context.Response.Body;
+            var responseBuffer = new MemoryStream();
+            var responseBody = context.Response.Body;
 
-            context.Response.Body = buffer;
+            context.Response.Body = responseBuffer;
 
             await next(context);
 
-            buffer.Seek(0, SeekOrigin.Begin);
+            responseBuffer.Seek(0, SeekOrigin.Begin);
 
             if (context.Response.StatusCode == 200 && IsIndex(context) && IsHtml(context))
             {
-                using (var reader = new StreamReader(buffer))
+                using (var reader = new StreamReader(responseBuffer))
                 {
                     var response = await reader.ReadToEndAsync();
 
@@ -54,19 +56,19 @@ namespace Squidex.Areas.Frontend.Middlewares
 
                             memoryStream.Seek(0, SeekOrigin.Begin);
 
-                            context.Response.Headers["Content-Length"] = memoryStream.Length.ToString();
+                            context.Response.Headers[HeaderNames.ContentLength] = memoryStream.Length.ToString();
 
-                            await memoryStream.CopyToAsync(body);
+                            await memoryStream.CopyToAsync(responseBody);
                         }
                     }
                 }
             }
             else if (context.Response.StatusCode != 304)
             {
-                await buffer.CopyToAsync(body);
+                await responseBuffer.CopyToAsync(responseBody);
             }
 
-            context.Response.Body = body;
+            context.Response.Body = responseBody;
         }
 
         private static string InjectStyles(string response)
@@ -76,14 +78,14 @@ namespace Squidex.Areas.Frontend.Middlewares
                 return response;
             }
 
-            var stylesTag = string.Empty;
+            var sb = new StringBuilder();
 
             foreach (var file in Styles)
             {
-                stylesTag += $"<link href=\"http://{Host}:{Port}/{file}\" rel=\"stylesheet\">";
+                sb.AppendLine($"<link href=\"http://{Host}:{Port}/{file}.css\" rel=\"stylesheet\">");
             }
 
-            response = response.Replace("</head>", $"{stylesTag}</head>");
+            response = response.Replace("</head>", $"{sb}</head>");
 
             return response;
         }
@@ -95,14 +97,14 @@ namespace Squidex.Areas.Frontend.Middlewares
                 return response;
             }
 
-            var scriptsTag = string.Empty;
+            var sb = new StringBuilder();
 
             foreach (var file in Scripts)
             {
-                scriptsTag += $"<script type=\"text/javascript\" src=\"http://{Host}:{Port}/{file}\"></script>";
+                sb.AppendLine($"<script type=\"text/javascript\" src=\"http://{Host}:{Port}/{file}.js\"></script>");
             }
 
-            response = response.Replace("</body>", $"{scriptsTag}</body>");
+            response = response.Replace("</body>", $"{sb}</body>");
 
             return response;
         }

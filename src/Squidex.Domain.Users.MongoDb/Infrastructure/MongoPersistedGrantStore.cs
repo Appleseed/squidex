@@ -6,10 +6,13 @@
 // ==========================================================================
 
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using IdentityServer4.Models;
 using IdentityServer4.Stores;
+using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
+using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
 using Squidex.Infrastructure.MongoDb;
 
@@ -22,7 +25,8 @@ namespace Squidex.Domain.Users.MongoDb.Infrastructure
             BsonClassMap.RegisterClassMap<PersistedGrant>(map =>
             {
                 map.AutoMap();
-                map.MapIdProperty(x => x.Key);
+
+                map.MapIdProperty(x => x.Key).SetSerializer(new StringSerializer(BsonType.ObjectId));
             });
         }
 
@@ -36,13 +40,14 @@ namespace Squidex.Domain.Users.MongoDb.Infrastructure
             return "Identity_PersistedGrants";
         }
 
-        protected override Task SetupCollectionAsync(IMongoCollection<PersistedGrant> collection)
+        protected override Task SetupCollectionAsync(IMongoCollection<PersistedGrant> collection, CancellationToken ct = default)
         {
-            return Task.WhenAll(
-                collection.Indexes.CreateOneAsync(
-                    new CreateIndexModel<PersistedGrant>(Index.Ascending(x => x.ClientId))),
-                collection.Indexes.CreateOneAsync(
-                    new CreateIndexModel<PersistedGrant>(Index.Ascending(x => x.SubjectId))));
+            return collection.Indexes.CreateManyAsync(
+                new[]
+                {
+                    new CreateIndexModel<PersistedGrant>(Index.Ascending(x => x.ClientId)),
+                    new CreateIndexModel<PersistedGrant>(Index.Ascending(x => x.SubjectId))
+                }, ct);
         }
 
         public Task StoreAsync(PersistedGrant grant)

@@ -6,18 +6,20 @@
 // ==========================================================================
 
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
 using NodaTime;
-using Squidex.Domain.Apps.Core.Apps;
 using Squidex.Domain.Apps.Entities.Apps;
 using Squidex.Domain.Apps.Entities.Apps.Services;
+using Squidex.Infrastructure;
 using Squidex.Infrastructure.Reflection;
+using Squidex.Infrastructure.Security;
+using Squidex.Pipeline;
+using Squidex.Shared;
 
 namespace Squidex.Areas.Api.Controllers.Apps.Models
 {
-    public sealed class AppDto
+    public sealed class AppDto : IGenerateETag
     {
         /// <summary>
         /// The name of the app.
@@ -49,8 +51,7 @@ namespace Squidex.Areas.Api.Controllers.Apps.Models
         /// <summary>
         /// The permission level of the user.
         /// </summary>
-        [JsonConverter(typeof(StringEnumConverter))]
-        public AppContributorPermission Permission { get; set; }
+        public string[] Permissions { get; set; }
 
         /// <summary>
         /// Gets the current plan name.
@@ -62,12 +63,23 @@ namespace Squidex.Areas.Api.Controllers.Apps.Models
         /// </summary>
         public string PlanUpgrade { get; set; }
 
-        public static AppDto FromApp(IAppEntity app, string subject, IAppPlansProvider plans)
+        public static AppDto FromApp(IAppEntity app, string userId, PermissionSet userPermissions, IAppPlansProvider plans)
         {
+            var permissions = new List<Permission>();
+
+            if (app.Contributors.TryGetValue(userId, out var roleName) && app.Roles.TryGetValue(roleName, out var role))
+            {
+                permissions.AddRange(role.Permissions);
+            }
+
+            if (userPermissions != null)
+            {
+                permissions.AddRange(userPermissions.ToAppPermissions(app.Name));
+            }
+
             var response = SimpleMapper.Map(app, new AppDto());
 
-            response.Permission = app.Contributors[subject];
-
+            response.Permissions = permissions.ToArray(x => x.Id);
             response.PlanName = plans.GetPlanForApp(app)?.Name;
             response.PlanUpgrade = plans.GetPlanUpgradeForApp(app)?.Name;
 

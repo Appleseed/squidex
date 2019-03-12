@@ -5,9 +5,7 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable:prefer-for-of
-
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { onErrorResumeNext } from 'rxjs/operators';
 
 import {
@@ -19,7 +17,8 @@ import {
 @Component({
     selector: 'sqx-assets-list',
     styleUrls: ['./assets-list.component.scss'],
-    templateUrl: './assets-list.component.html'
+    templateUrl: './assets-list.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AssetsListComponent {
     public newFiles = ImmutableArray.empty<File>();
@@ -28,7 +27,10 @@ export class AssetsListComponent {
     public state: AssetsState;
 
     @Input()
-    public isDisabled: false;
+    public isDisabled = false;
+
+    @Input()
+    public isListView = false;
 
     @Input()
     public selectedIds: object;
@@ -62,10 +64,6 @@ export class AssetsListComponent {
         this.state.update(asset);
     }
 
-    public trackByAsset(index: number, asset: AssetDto) {
-        return asset.id;
-    }
-
     public select(asset: AssetDto) {
         this.selected.emit(asset);
     }
@@ -78,10 +76,16 @@ export class AssetsListComponent {
         this.newFiles = this.newFiles.remove(file);
     }
 
-    public addFiles(files: FileList) {
-        for (let i = 0; i < files.length; i++) {
-            this.newFiles = this.newFiles.pushFront(files[i]);
+    public addFiles(files: File[]) {
+        for (let file of files) {
+            this.newFiles = this.newFiles.pushFront(file);
         }
+
+        return true;
+    }
+
+    public trackByAsset(index: number, asset: AssetDto) {
+        return asset.id;
     }
 }
 

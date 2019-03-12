@@ -9,9 +9,15 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Options;
+using Microsoft.OData;
+using Squidex.Domain.Apps.Core.Tags;
+using Squidex.Domain.Apps.Entities.Assets.Edm;
+using Squidex.Domain.Apps.Entities.Assets.Queries;
 using Squidex.Domain.Apps.Entities.Assets.Repositories;
-using Squidex.Domain.Apps.Entities.Tags;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.Queries;
+using Squidex.Infrastructure.Queries.OData;
 
 namespace Squidex.Domain.Apps.Entities.Assets
 {
@@ -19,15 +25,17 @@ namespace Squidex.Domain.Apps.Entities.Assets
     {
         private readonly ITagService tagService;
         private readonly IAssetRepository assetRepository;
+        private readonly AssetOptions options;
 
-        public AssetQueryService(ITagService tagService, IAssetRepository assetRepository)
+        public AssetQueryService(ITagService tagService, IAssetRepository assetRepository, IOptions<AssetOptions> options)
         {
             Guard.NotNull(tagService, nameof(tagService));
+            Guard.NotNull(options, nameof(options));
             Guard.NotNull(assetRepository, nameof(assetRepository));
 
-            this.tagService = tagService;
-
             this.assetRepository = assetRepository;
+            this.options = options.Value;
+            this.tagService = tagService;
         }
 
         public async Task<IAssetEntity> FindAssetAsync(QueryContext context, Guid id)
@@ -44,7 +52,7 @@ namespace Squidex.Domain.Apps.Entities.Assets
             return asset;
         }
 
-        public async Task<IResultList<IAssetEntity>> QueryAsync(QueryContext context, Query query)
+        public async Task<IResultList<IAssetEntity>> QueryAsync(QueryContext context, Q query)
         {
             Guard.NotNull(context, nameof(context));
             Guard.NotNull(query, nameof(query));
@@ -58,7 +66,9 @@ namespace Squidex.Domain.Apps.Entities.Assets
             }
             else
             {
-                assets = await assetRepository.QueryAsync(context.App.Id, query.ODataQuery);
+                var parsedQuery = ParseQuery(context, query.ODataQuery);
+
+                assets = await assetRepository.QueryAsync(context.App.Id, parsedQuery);
             }
 
             await DenormalizeTagsAsync(context.App.Id, assets);
@@ -66,11 +76,44 @@ namespace Squidex.Domain.Apps.Entities.Assets
             return assets;
         }
 
-        private IResultList<IAssetEntity> Sort(IResultList<IAssetEntity> assets, IList<Guid> ids)
+        private static IResultList<IAssetEntity> Sort(IResultList<IAssetEntity> assets, IReadOnlyList<Guid> ids)
         {
             var sorted = ids.Select(id => assets.FirstOrDefault(x => x.Id == id)).Where(x => x != null);
 
             return ResultList.Create(assets.Total, sorted);
+        }
+
+        private Query ParseQuery(QueryContext context, string query)
+        {
+            try
+            {
+                var result = EdmAssetModel.Edm.ParseQuery(query).ToQuery();
+
+                if (result.Filter != null)
+                {
+                    result.Filter = FilterTagTransformer.Transform(result.Filter, context.App.Id, tagService);
+                }
+
+                if (result.Sort.Count == 0)
+                {
+                    result.Sort.Add(new SortNode(new List<string> { "lastModified" }, SortOrder.Descending));
+                }
+
+                if (result.Take > options.MaxResults)
+                {
+                    result.Take = options.MaxResults;
+                }
+
+                return result;
+            }
+            catch (NotSupportedException)
+            {
+                throw new ValidationException("OData operation is not supported.");
+            }
+            catch (ODataException ex)
+            {
+                throw new ValidationException($"Failed to parse query: {ex.Message}", ex);
+            }
         }
 
         private async Task DenormalizeTagsAsync(Guid appId, IEnumerable<IAssetEntity> assets)

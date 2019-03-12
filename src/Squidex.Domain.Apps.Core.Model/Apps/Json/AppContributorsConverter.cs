@@ -7,9 +7,9 @@
 
 using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
+using System.Linq;
 using Newtonsoft.Json;
-using Squidex.Infrastructure.Json;
+using Squidex.Infrastructure.Json.Newtonsoft;
 
 namespace Squidex.Domain.Apps.Core.Apps.Json
 {
@@ -17,7 +17,7 @@ namespace Squidex.Domain.Apps.Core.Apps.Json
     {
         protected override void WriteValue(JsonWriter writer, AppContributors value, JsonSerializer serializer)
         {
-            var json = new Dictionary<string, AppContributorPermission>(value.Count);
+            var json = new Dictionary<string, string>(value.Count);
 
             foreach (var contributor in value)
             {
@@ -29,9 +29,9 @@ namespace Squidex.Domain.Apps.Core.Apps.Json
 
         protected override AppContributors ReadValue(JsonReader reader, Type objectType, JsonSerializer serializer)
         {
-            var json = serializer.Deserialize<Dictionary<string, AppContributorPermission>>(reader);
+            var json = serializer.Deserialize<Dictionary<string, string>>(reader);
 
-            return new AppContributors(json.ToImmutableDictionary());
+            return new AppContributors(json.ToArray());
         }
     }
 }

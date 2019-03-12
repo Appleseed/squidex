@@ -8,7 +8,6 @@
 using System;
 using System.Threading.Tasks;
 using FakeItEasy;
-using Newtonsoft.Json.Linq;
 using Squidex.Domain.Apps.Core.Contents;
 using Squidex.Infrastructure;
 using Xunit;
@@ -62,7 +61,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
 
             var asset = CreateAsset(Guid.NewGuid());
 
-            A.CallTo(() => assetQuery.QueryAsync(MatchsAssetContext(), A<Query>.That.Matches(x => x.ODataQuery == "?$take=30&$skip=5&$search=my-query")))
+            A.CallTo(() => assetQuery.QueryAsync(MatchsAssetContext(), A<Q>.That.Matches(x => x.ODataQuery == "?$take=30&$skip=5&$search=my-query")))
                 .Returns(ResultList.Create(0, asset));
 
             var result = await sut.QueryAsync(context, new GraphQLQuery { Query = query });
@@ -77,9 +76,9 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
                         {
                             id = asset.Id,
                             version = 1,
-                            created = asset.Created.ToDateTimeUtc(),
+                            created = asset.Created,
                             createdBy = "subject:user1",
-                            lastModified = asset.LastModified.ToDateTimeUtc(),
+                            lastModified = asset.LastModified,
                             lastModifiedBy = "subject:user2",
                             url = $"assets/{asset.Id}",
                             thumbnailUrl = $"assets/{asset.Id}?width=100",
@@ -129,7 +128,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
 
             var asset = CreateAsset(Guid.NewGuid());
 
-            A.CallTo(() => assetQuery.QueryAsync(MatchsAssetContext(), A<Query>.That.Matches(x => x.ODataQuery == "?$take=30&$skip=5&$search=my-query")))
+            A.CallTo(() => assetQuery.QueryAsync(MatchsAssetContext(), A<Q>.That.Matches(x => x.ODataQuery == "?$take=30&$skip=5&$search=my-query")))
                 .Returns(ResultList.Create(10, asset));
 
             var result = await sut.QueryAsync(context, new GraphQLQuery { Query = query });
@@ -147,9 +146,9 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
                             {
                                 id = asset.Id,
                                 version = 1,
-                                created = asset.Created.ToDateTimeUtc(),
+                                created = asset.Created,
                                 createdBy = "subject:user1",
-                                lastModified = asset.LastModified.ToDateTimeUtc(),
+                                lastModified = asset.LastModified,
                                 lastModifiedBy = "subject:user2",
                                 url = $"assets/{asset.Id}",
                                 thumbnailUrl = $"assets/{asset.Id}?width=100",
@@ -211,9 +210,9 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
                     {
                         id = asset.Id,
                         version = 1,
-                        created = asset.Created.ToDateTimeUtc(),
+                        created = asset.Created,
                         createdBy = "subject:user1",
-                        lastModified = asset.LastModified.ToDateTimeUtc(),
+                        lastModified = asset.LastModified,
                         lastModifiedBy = "subject:user2",
                         url = $"assets/{asset.Id}",
                         thumbnailUrl = $"assets/{asset.Id}?width=100",
@@ -268,6 +267,9 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
                       myTags {
                         iv
                       }
+                      myLocalized {
+                        de_DE
+                      }
                       myArray {
                         iv {
                           nestedNumber
@@ -280,7 +282,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
 
             var content = CreateContent(Guid.NewGuid(), Guid.Empty, Guid.Empty);
 
-            A.CallTo(() => contentQuery.QueryAsync(MatchsContentContext(), A<Query>.That.Matches(x => x.ODataQuery == "?$top=30&$skip=5")))
+            A.CallTo(() => contentQuery.QueryAsync(MatchsContentContext(), schemaId.ToString(), A<Q>.That.Matches(x => x.ODataQuery == "?$top=30&$skip=5")))
                 .Returns(ResultList.Create(0, content));
 
             var result = await sut.QueryAsync(context, new GraphQLQuery { Query = query });
@@ -295,9 +297,9 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
                         {
                             id = content.Id,
                             version = 1,
-                            created = content.Created.ToDateTimeUtc(),
+                            created = content.Created,
                             createdBy = "subject:user1",
-                            lastModified = content.LastModified.ToDateTimeUtc(),
+                            lastModified = content.LastModified,
                             lastModifiedBy = "subject:user2",
                             status = "DRAFT",
                             url = $"contents/my-schema/{content.Id}",
@@ -317,7 +319,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
                                 },
                                 myDatetime = new
                                 {
-                                    iv = content.LastModified.ToDateTimeUtc()
+                                    iv = content.LastModified
                                 },
                                 myJson = new
                                 {
@@ -341,6 +343,10 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
                                         "tag1",
                                         "tag2"
                                     }
+                                },
+                                myLocalized = new
+                                {
+                                    de_DE = "de-DE"
                                 },
                                 myArray = new
                                 {
@@ -405,6 +411,9 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
                         myTags {
                           iv
                         }
+                        myLocalized {
+                          de_DE
+                        }
                       }
                     }
                   }
@@ -412,7 +421,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
 
             var content = CreateContent(Guid.NewGuid(), Guid.Empty, Guid.Empty);
 
-            A.CallTo(() => contentQuery.QueryAsync(MatchsContentContext(), A<Query>.That.Matches(x => x.ODataQuery == "?$top=30&$skip=5")))
+            A.CallTo(() => contentQuery.QueryAsync(MatchsContentContext(), schemaId.ToString(), A<Q>.That.Matches(x => x.ODataQuery == "?$top=30&$skip=5")))
                 .Returns(ResultList.Create(10, content));
 
             var result = await sut.QueryAsync(context, new GraphQLQuery { Query = query });
@@ -430,9 +439,9 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
                             {
                                 id = content.Id,
                                 version = 1,
-                                created = content.Created.ToDateTimeUtc(),
+                                created = content.Created,
                                 createdBy = "subject:user1",
-                                lastModified = content.LastModified.ToDateTimeUtc(),
+                                lastModified = content.LastModified,
                                 lastModifiedBy = "subject:user2",
                                 status = "DRAFT",
                                 url = $"contents/my-schema/{content.Id}",
@@ -452,7 +461,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
                                     },
                                     myDatetime = new
                                     {
-                                        iv = content.LastModified.ToDateTimeUtc()
+                                        iv = content.LastModified
                                     },
                                     myJson = new
                                     {
@@ -476,6 +485,10 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
                                             "tag1",
                                             "tag2"
                                         }
+                                    },
+                                    myLocalized = new
+                                    {
+                                        de_DE = "de-DE"
                                     }
                                 }
                             }
@@ -526,11 +539,14 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
                       myTags {{
                         iv
                       }}
+                      myLocalized {{
+                        de_DE
+                      }}
                     }}
                   }}
                 }}";
 
-            A.CallTo(() => contentQuery.FindContentAsync(MatchsContentContext(), contentId, EtagVersion.Any))
+            A.CallTo(() => contentQuery.FindContentAsync(MatchsContentContext(), schemaId.ToString(), contentId, EtagVersion.Any))
                 .Returns(content);
 
             var result = await sut.QueryAsync(context, new GraphQLQuery { Query = query });
@@ -543,9 +559,9 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
                     {
                         id = content.Id,
                         version = 1,
-                        created = content.Created.ToDateTimeUtc(),
+                        created = content.Created,
                         createdBy = "subject:user1",
-                        lastModified = content.LastModified.ToDateTimeUtc(),
+                        lastModified = content.LastModified,
                         lastModifiedBy = "subject:user2",
                         status = "DRAFT",
                         url = $"contents/my-schema/{content.Id}",
@@ -565,7 +581,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
                             },
                             myDatetime = new
                             {
-                                iv = content.LastModified.ToDateTimeUtc()
+                                iv = content.LastModified
                             },
                             myJson = new
                             {
@@ -589,6 +605,10 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
                                     "tag1",
                                     "tag2"
                                 }
+                            },
+                            myLocalized = new
+                            {
+                                de_DE = "de-DE"
                             }
                         }
                     }
@@ -621,10 +641,10 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
                   }}
                 }}";
 
-            A.CallTo(() => contentQuery.FindContentAsync(MatchsContentContext(), contentId, EtagVersion.Any))
+            A.CallTo(() => contentQuery.FindContentAsync(MatchsContentContext(), schemaId.ToString(), contentId, EtagVersion.Any))
                 .Returns(content);
 
-            A.CallTo(() => contentQuery.QueryAsync(MatchsContentContext(), A<Query>.Ignored))
+            A.CallTo(() => contentQuery.QueryAsync(MatchsContentContext(), schemaId.ToString(), A<Q>.Ignored))
                 .Returns(ResultList.Create(0, contentRef));
 
             var result = await sut.QueryAsync(context, new GraphQLQuery { Query = query });
@@ -679,10 +699,10 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
                   }}
                 }}";
 
-            A.CallTo(() => contentQuery.FindContentAsync(MatchsContentContext(), contentId, EtagVersion.Any))
+            A.CallTo(() => contentQuery.FindContentAsync(MatchsContentContext(), schemaId.ToString(), contentId, EtagVersion.Any))
                 .Returns(content);
 
-            A.CallTo(() => assetQuery.QueryAsync(MatchsAssetContext(), A<Query>.Ignored))
+            A.CallTo(() => assetQuery.QueryAsync(MatchsAssetContext(), A<Q>.Ignored))
                 .Returns(ResultList.Create(0, assetRef));
 
             var result = await sut.QueryAsync(context, new GraphQLQuery { Query = query });
@@ -793,14 +813,107 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
                   }}
                 }}";
 
-            A.CallTo(() => contentQuery.FindContentAsync(MatchsContentContext(), contentId, EtagVersion.Any))
+            A.CallTo(() => contentQuery.FindContentAsync(MatchsContentContext(), schemaId.ToString(), contentId, EtagVersion.Any))
                 .Returns(content);
 
             var result = await sut.QueryAsync(context, new GraphQLQuery { Query = query });
 
-            var json = JToken.FromObject(result);
+            var json = serializer.Serialize(result);
 
-            Assert.Null(json["data"]);
+            Assert.Contains("\"data\":null", json);
+        }
+
+        [Fact]
+        public async Task Should_return_draft_content_when_querying_dataDraft()
+        {
+            var dataDraft = new NamedContentData()
+                .AddField("my-string",
+                    new ContentFieldData()
+                        .AddValue("de", "draft value"))
+                .AddField("my-number",
+                    new ContentFieldData()
+                        .AddValue("iv", 42));
+
+            var contentId = Guid.NewGuid();
+            var content = CreateContent(contentId, Guid.Empty, Guid.Empty, null, dataDraft);
+
+            var query = $@"
+                query {{
+                  findMySchemaContent(id: ""{contentId}"") {{
+                    dataDraft {{
+                      myString {{
+                        de
+                      }}
+                      myNumber {{
+                        iv
+                      }}
+                    }}
+                  }}
+                }}";
+
+            A.CallTo(() => contentQuery.FindContentAsync(MatchsContentContext(), schemaId.ToString(), contentId, EtagVersion.Any))
+                .Returns(content);
+
+            var result = await sut.QueryAsync(context, new GraphQLQuery { Query = query });
+
+            var expected = new
+            {
+                data = new
+                {
+                    findMySchemaContent = new
+                    {
+                        dataDraft = new
+                        {
+                            myString = new
+                            {
+                                de = "draft value"
+                            },
+                            myNumber = new
+                            {
+                                iv = 42
+                            }
+                        }
+                    }
+                }
+            };
+
+            AssertResult(expected, result);
+        }
+
+        [Fact]
+        public async Task Should_return_null_when_querying_dataDraft_and_no_draft_content_is_available()
+        {
+            var contentId = Guid.NewGuid();
+            var content = CreateContent(contentId, Guid.Empty, Guid.Empty, null);
+
+            var query = $@"
+                query {{
+                  findMySchemaContent(id: ""{contentId}"") {{
+                    dataDraft {{
+                      myString {{
+                        de
+                      }}
+                    }}
+                  }}
+                }}";
+
+            A.CallTo(() => contentQuery.FindContentAsync(MatchsContentContext(), schemaId.ToString(), contentId, EtagVersion.Any))
+                .Returns(content);
+
+            var result = await sut.QueryAsync(context, new GraphQLQuery { Query = query });
+
+            var expected = new
+            {
+                data = new
+                {
+                    findMySchemaContent = new
+                    {
+                        dataDraft = (object)null
+                    }
+                }
+            };
+
+            AssertResult(expected, result);
         }
 
         private QueryContext MatchsAssetContext()
@@ -808,9 +921,9 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
             return A<QueryContext>.That.Matches(x => x.App == app && x.User == user && !x.Archived);
         }
 
-        private ContentQueryContext MatchsContentContext()
+        private QueryContext MatchsContentContext()
         {
-            return A<ContentQueryContext>.That.Matches(x => x.Base.App == app && x.Base.User == user && !x.Base.Archived && x.SchemaIdOrName == schema.Id.ToString());
+            return A<QueryContext>.That.Matches(x => x.App == app && x.User == user && !x.Archived);
         }
     }
 }

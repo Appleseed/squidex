@@ -24,15 +24,13 @@ module.exports = webpackMerge(testConfig, {
             test: /\.ts$/,
             use: [{
                 loader: 'istanbul-instrumenter-loader'
-            },{
+            }, {
                 loader: 'awesome-typescript-loader'
             }, {
                 loader: 'angular-router-loader'
             }, {
                 loader: 'angular2-template-loader'
-            }, {
-				loader: 'tslint-loader' 
-			}],
+            }],
             exclude: [/\.(e2e|spec)\.ts$/]
         }]
     }

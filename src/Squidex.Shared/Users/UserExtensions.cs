@@ -7,106 +7,81 @@
 
 using System;
 using System.Linq;
-using Squidex.Infrastructure;
+using Squidex.Infrastructure.Security;
 using Squidex.Shared.Identity;
 
 namespace Squidex.Shared.Users
 {
     public static class UserExtensions
     {
-        public static void SetDisplayName(this IUser user, string displayName)
+        public static PermissionSet Permissions(this IUser user)
         {
-            user.SetClaim(SquidexClaimTypes.SquidexDisplayName, displayName);
-        }
-
-        public static void SetPictureUrl(this IUser user, string pictureUrl)
-        {
-            user.SetClaim(SquidexClaimTypes.SquidexPictureUrl, pictureUrl);
-        }
-
-        public static void SetPictureUrlToStore(this IUser user)
-        {
-            user.SetClaim(SquidexClaimTypes.SquidexPictureUrl, "store");
-        }
-
-        public static void SetPictureUrlFromGravatar(this IUser user, string email)
-        {
-            user.SetClaim(SquidexClaimTypes.SquidexPictureUrl, GravatarHelper.CreatePictureUrl(email));
-        }
-
-        public static void SetHidden(this IUser user, bool value)
-        {
-            user.SetClaim(SquidexClaimTypes.SquidexHidden, value.ToString());
-        }
-
-        public static void SetConsent(this IUser user)
-        {
-            user.SetClaim(SquidexClaimTypes.SquidexConsent, "true");
-        }
-
-        public static void SetConsentForEmails(this IUser user, bool value)
-        {
-            user.SetClaim(SquidexClaimTypes.SquidexConsentForEmails, value.ToString());
+            return new PermissionSet(user.GetClaimValues(SquidexClaimTypes.Permissions).Select(x => new Permission(x)));
         }
 
         public static bool IsHidden(this IUser user)
         {
-            return user.HasClaimValue(SquidexClaimTypes.SquidexHidden, "true");
+            return user.HasClaimValue(SquidexClaimTypes.Hidden, "true");
         }
 
         public static bool HasConsent(this IUser user)
         {
-            return user.HasClaimValue(SquidexClaimTypes.SquidexConsent, "true");
+            return user.HasClaimValue(SquidexClaimTypes.Consent, "true");
         }
 
         public static bool HasConsentForEmails(this IUser user)
         {
-            return user.HasClaimValue(SquidexClaimTypes.SquidexConsentForEmails, "true");
+            return user.HasClaimValue(SquidexClaimTypes.ConsentForEmails, "true");
         }
 
         public static bool HasDisplayName(this IUser user)
         {
-            return user.HasClaim(SquidexClaimTypes.SquidexDisplayName);
+            return user.HasClaim(SquidexClaimTypes.DisplayName);
         }
 
         public static bool HasPictureUrl(this IUser user)
         {
-            return user.HasClaim(SquidexClaimTypes.SquidexPictureUrl);
+            return user.HasClaim(SquidexClaimTypes.PictureUrl);
         }
 
         public static bool IsPictureUrlStored(this IUser user)
         {
-            return user.HasClaimValue(SquidexClaimTypes.SquidexPictureUrl, "store");
+            return user.HasClaimValue(SquidexClaimTypes.PictureUrl, SquidexClaimTypes.PictureUrlStore);
         }
 
         public static string PictureUrl(this IUser user)
         {
-            return user.GetClaimValue(SquidexClaimTypes.SquidexPictureUrl);
+            return user.GetClaimValue(SquidexClaimTypes.PictureUrl);
         }
 
         public static string DisplayName(this IUser user)
         {
-            return user.GetClaimValue(SquidexClaimTypes.SquidexDisplayName);
+            return user.GetClaimValue(SquidexClaimTypes.DisplayName);
         }
 
-        public static string GetClaimValue(this IUser user, string claim)
+        public static string GetClaimValue(this IUser user, string type)
         {
-            return user.Claims.FirstOrDefault(x => string.Equals(x.Type, claim, StringComparison.OrdinalIgnoreCase))?.Value;
+            return user.Claims.FirstOrDefault(x => string.Equals(x.Type, type, StringComparison.OrdinalIgnoreCase))?.Value;
         }
 
-        public static bool HasClaim(this IUser user, string claim)
+        public static string[] GetClaimValues(this IUser user, string type)
         {
-            return user.Claims.Any(x => string.Equals(x.Type, claim, StringComparison.OrdinalIgnoreCase));
+            return user.Claims.Where(x => string.Equals(x.Type, type, StringComparison.OrdinalIgnoreCase)).Select(x => x.Value).ToArray();
         }
 
-        public static bool HasClaimValue(this IUser user, string claim, string value)
+        public static bool HasClaim(this IUser user, string type)
         {
-            return user.Claims.Any(x => string.Equals(x.Type, claim, StringComparison.OrdinalIgnoreCase) && string.Equals(x.Value, value, StringComparison.OrdinalIgnoreCase));
+            return user.Claims.Any(x => string.Equals(x.Type, type, StringComparison.OrdinalIgnoreCase));
+        }
+
+        public static bool HasClaimValue(this IUser user, string type, string value)
+        {
+            return user.Claims.Any(x => string.Equals(x.Type, type, StringComparison.OrdinalIgnoreCase) && string.Equals(x.Value, value, StringComparison.OrdinalIgnoreCase));
         }
 
         public static string PictureNormalizedUrl(this IUser user)
         {
-            var url = user.Claims.FirstOrDefault(x => x.Type == SquidexClaimTypes.SquidexPictureUrl)?.Value;
+            var url = user.Claims.FirstOrDefault(x => x.Type == SquidexClaimTypes.PictureUrl)?.Value;
 
             if (!string.IsNullOrWhiteSpace(url) && Uri.IsWellFormedUriString(url, UriKind.Absolute) && url.Contains("gravatar"))
             {

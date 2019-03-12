@@ -6,7 +6,7 @@
 // ==========================================================================
 
 using System;
-using Newtonsoft.Json;
+using System.Runtime.Serialization;
 using Squidex.Domain.Apps.Core.Contents;
 using Squidex.Domain.Apps.Events;
 using Squidex.Domain.Apps.Events.Contents;
@@ -19,29 +19,29 @@ namespace Squidex.Domain.Apps.Entities.Contents.State
 {
     public class ContentState : DomainObjectState<ContentState>, IContentEntity
     {
-        [JsonProperty]
+        [DataMember]
         public NamedId<Guid> AppId { get; set; }
 
-        [JsonProperty]
+        [DataMember]
         public NamedId<Guid> SchemaId { get; set; }
 
-        [JsonProperty]
+        [DataMember]
         public NamedContentData Data { get; set; }
 
-        [JsonProperty]
+        [DataMember]
         public NamedContentData DataDraft { get; set; }
 
-        [JsonProperty]
+        [DataMember]
         public ScheduleJob ScheduleJob { get; set; }
 
-        [JsonProperty]
-        public Status Status { get; set; }
-
-        [JsonProperty]
+        [DataMember]
         public bool IsPending { get; set; }
 
-        [JsonProperty]
+        [DataMember]
         public bool IsDeleted { get; set; }
+
+        [DataMember]
+        public Status Status { get; set; }
 
         protected void On(ContentCreated @event)
         {
@@ -86,13 +86,14 @@ namespace Squidex.Domain.Apps.Entities.Contents.State
         protected void On(ContentStatusChanged @event)
         {
             ScheduleJob = null;
-
             Status = @event.Status;
 
             if (@event.Status == Status.Published)
             {
                 Data = DataDraft;
             }
+
+            IsPending = false;
         }
 
         protected void On(ContentSchedulingCancelled @event)

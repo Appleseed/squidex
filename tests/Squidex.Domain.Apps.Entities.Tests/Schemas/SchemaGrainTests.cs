@@ -23,10 +23,9 @@ using Xunit;
 
 namespace Squidex.Domain.Apps.Entities.Schemas
 {
-    public class SchemaGrainTests : HandlerTestBase<SchemaGrain, SchemaState>
+    public class SchemaGrainTests : HandlerTestBase<SchemaState>
     {
         private readonly IAppProvider appProvider = A.Fake<IAppProvider>();
-        private readonly FieldRegistry registry = new FieldRegistry(new TypeNameRegistry());
         private readonly string fieldName = "age";
         private readonly string arrayName = "array";
         private readonly NamedId<long> fieldId = NamedId.Of(1L, "age");
@@ -44,8 +43,8 @@ namespace Squidex.Domain.Apps.Entities.Schemas
             A.CallTo(() => appProvider.GetSchemaAsync(AppId, SchemaName))
                 .Returns((ISchemaEntity)null);
 
-            sut = new SchemaGrain(Store, A.Dummy<ISemanticLog>(), appProvider, registry);
-            sut.OnActivateAsync(Id).Wait();
+            sut = new SchemaGrain(Store, A.Dummy<ISemanticLog>(), appProvider, TestUtils.DefaultSerializer);
+            sut.ActivateAsync(Id).Wait();
         }
 
         [Fact]
@@ -62,7 +61,7 @@ namespace Squidex.Domain.Apps.Entities.Schemas
         {
             var properties = new SchemaProperties();
 
-            var command = new CreateSchema { Name = SchemaName, SchemaId = SchemaId, Properties = properties, Singleton = true };
+            var command = new CreateSchema { Name = SchemaName, SchemaId = SchemaId, Properties = properties, IsSingleton = true };
 
             var result = await sut.ExecuteAsync(CreateCommand(command));
 
@@ -70,13 +69,13 @@ namespace Squidex.Domain.Apps.Entities.Schemas
 
             Assert.Equal(AppId, sut.Snapshot.AppId.Id);
 
-            Assert.Equal(SchemaName, sut.Snapshot.Name);
             Assert.Equal(SchemaName, sut.Snapshot.SchemaDef.Name);
-            Assert.True(sut.Snapshot.IsSingleton);
+            Assert.Equal(SchemaName, sut.Snapshot.SchemaDef.Name);
+            Assert.True(sut.Snapshot.SchemaDef.IsSingleton);
 
             LastEvents
                 .ShouldHaveSameEvents(
-                    CreateEvent(new SchemaCreated { Name = SchemaName, Properties = properties, Singleton = true })
+                    CreateEvent(new SchemaCreated { Schema = new Schema(command.Name, command.Properties, command.IsSingleton) })
                 );
         }
 
@@ -85,19 +84,19 @@ namespace Squidex.Domain.Apps.Entities.Schemas
         {
             var properties = new SchemaProperties();
 
-            var fields = new List<CreateSchemaField>
+            var fields = new List<UpsertSchemaField>
             {
-                new CreateSchemaField { Name = "field1", Properties = ValidProperties() },
-                new CreateSchemaField { Name = "field2", Properties = ValidProperties() },
-                new CreateSchemaField
+                new UpsertSchemaField { Name = "field1", Properties = ValidProperties() },
+                new UpsertSchemaField { Name = "field2", Properties = ValidProperties() },
+                new UpsertSchemaField
                 {
                     Name = "field3",
                     Partitioning = Partitioning.Language.Key,
                     Properties = new ArrayFieldProperties(),
-                    Nested = new List<CreateSchemaNestedField>
+                    Nested = new List<UpsertSchemaNestedField>
                     {
-                        new CreateSchemaNestedField { Name = "nested1", Properties = ValidProperties() },
-                        new CreateSchemaNestedField { Name = "nested2", Properties = ValidProperties() }
+                        new UpsertSchemaNestedField { Name = "nested1", Properties = ValidProperties() },
+                        new UpsertSchemaNestedField { Name = "nested2", Properties = ValidProperties() }
                     }
                 }
             };
@@ -111,10 +110,10 @@ namespace Squidex.Domain.Apps.Entities.Schemas
             var @event = (SchemaCreated)LastEvents.Single().Payload;
 
             Assert.Equal(AppId, sut.Snapshot.AppId.Id);
-            Assert.Equal(SchemaName, sut.Snapshot.Name);
+            Assert.Equal(SchemaName, sut.Snapshot.SchemaDef.Name);
             Assert.Equal(SchemaName, sut.Snapshot.SchemaDef.Name);
 
-            Assert.Equal(3, @event.Fields.Count);
+            Assert.Equal(3, @event.Schema.Fields.Count);
         }
 
         [Fact]
@@ -141,11 +140,10 @@ namespace Squidex.Domain.Apps.Entities.Schemas
         {
             var command = new ConfigureScripts
             {
-                ScriptQuery = "<script-query>",
-                ScriptCreate = "<script-create>",
-                ScriptUpdate = "<script-update>",
-                ScriptDelete = "<script-delete>",
-                ScriptChange = "<script-change>"
+                Scripts = new SchemaScripts
+                {
+                    Query = "<query-script>"
+                }
             };
 
             await ExecuteCreateAsync();
@@ -156,14 +154,7 @@ namespace Squidex.Domain.Apps.Entities.Schemas
 
             LastEvents
                 .ShouldHaveSameEvents(
-                    CreateEvent(new ScriptsConfigured
-                    {
-                        ScriptQuery = "<script-query>",
-                        ScriptCreate = "<script-create>",
-                        ScriptUpdate = "<script-update>",
-                        ScriptDelete = "<script-delete>",
-                        ScriptChange = "<script-change>"
-                    })
+                    CreateEvent(new SchemaScriptsConfigured { Scripts = command.Scripts })
                 );
         }
 
@@ -217,11 +208,36 @@ namespace Squidex.Domain.Apps.Entities.Schemas
 
             result.ShouldBeEquivalent(new EntitySavedResult(1));
 
-            Assert.Equal(command.Name, sut.Snapshot.Category);
+            Assert.Equal(command.Name, sut.Snapshot.SchemaDef.Category);
 
             LastEvents
                 .ShouldHaveSameEvents(
                     CreateEvent(new SchemaCategoryChanged { Name = command.Name })
+                );
+        }
+
+        [Fact]
+        public async Task ConfigurePreviewUrls_should_create_events_and_update_state()
+        {
+            var command = new ConfigurePreviewUrls
+            {
+                PreviewUrls = new Dictionary<string, string>
+                {
+                    ["Web"] = "web-url"
+                }
+            };
+
+            await ExecuteCreateAsync();
+
+            var result = await sut.ExecuteAsync(CreateCommand(command));
+
+            result.ShouldBeEquivalent(new EntitySavedResult(1));
+
+            Assert.Equal(command.PreviewUrls, sut.Snapshot.SchemaDef.PreviewUrls);
+
+            LastEvents
+                .ShouldHaveSameEvents(
+                    CreateEvent(new SchemaPreviewUrlsConfigured { PreviewUrls = command.PreviewUrls })
                 );
         }
 
@@ -618,6 +634,46 @@ namespace Squidex.Domain.Apps.Entities.Schemas
             LastEvents
                 .ShouldHaveSameEvents(
                     CreateEvent(new FieldDeleted { ParentFieldId = arrayId, FieldId = nestedId })
+                );
+        }
+
+        [Fact]
+        public async Task Synchronize_should_create_events_and_update_state()
+        {
+            var command = new SynchronizeSchema
+            {
+                Scripts = new SchemaScripts
+                {
+                    Query = "<query-script"
+                },
+                PreviewUrls = new Dictionary<string, string>
+                {
+                    ["Web"] = "web-url"
+                },
+                Fields = new List<UpsertSchemaField>
+                {
+                    new UpsertSchemaField { Name = fieldId.Name, Properties = ValidProperties() }
+                },
+                Category = "My-Category"
+            };
+
+            await ExecuteCreateAsync();
+
+            var result = await sut.ExecuteAsync(CreateCommand(command));
+
+            result.ShouldBeEquivalent(new EntitySavedResult(4));
+
+            Assert.NotNull(GetField(1));
+            Assert.Equal(command.Category, sut.Snapshot.SchemaDef.Category);
+            Assert.Equal(command.Scripts, sut.Snapshot.SchemaDef.Scripts);
+            Assert.Equal(command.PreviewUrls, sut.Snapshot.SchemaDef.PreviewUrls);
+
+            LastEvents
+                .ShouldHaveSameEvents(
+                    CreateEvent(new SchemaCategoryChanged { Name = command.Category }),
+                    CreateEvent(new SchemaScriptsConfigured { Scripts = command.Scripts }),
+                    CreateEvent(new SchemaPreviewUrlsConfigured { PreviewUrls = command.PreviewUrls }),
+                    CreateEvent(new FieldAdded { FieldId = fieldId, Name = fieldId.Name, Properties = command.Fields[0].Properties, Partitioning = Partitioning.Invariant.Key })
                 );
         }
 

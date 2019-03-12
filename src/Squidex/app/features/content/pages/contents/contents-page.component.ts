@@ -5,8 +5,7 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { Component, OnDestroy, OnInit, ViewChild } from '@angular/core';
-import { Subscription } from 'rxjs';
+import { Component, OnInit, ViewChild } from '@angular/core';
 import { onErrorResumeNext, switchMap, tap } from 'rxjs/operators';
 
 import {
@@ -18,6 +17,7 @@ import {
     LanguagesState,
     ModalModel,
     Queries,
+    ResourceOwner,
     SchemaDetailsDto,
     SchemasState,
     UIState
@@ -30,11 +30,7 @@ import { DueTimeSelectorComponent } from './../../shared/due-time-selector.compo
     styleUrls: ['./contents-page.component.scss'],
     templateUrl: './contents-page.component.html'
 })
-export class ContentsPageComponent implements OnDestroy, OnInit {
-    private contentsSubscription: Subscription;
-    private languagesSubscription: Subscription;
-    private selectedSchemaSubscription: Subscription;
-
+export class ContentsPageComponent extends ResourceOwner implements OnInit {
     public schema: SchemaDetailsDto;
     public schemaQueries: Queries;
 
@@ -61,16 +57,11 @@ export class ContentsPageComponent implements OnDestroy, OnInit {
         private readonly schemasState: SchemasState,
         private readonly uiState: UIState
     ) {
-    }
-
-    public ngOnDestroy() {
-        this.contentsSubscription.unsubscribe();
-        this.languagesSubscription.unsubscribe();
-        this.selectedSchemaSubscription.unsubscribe();
+        super();
     }
 
     public ngOnInit() {
-        this.selectedSchemaSubscription =
+        this.own(
             this.schemasState.selectedSchema
                 .subscribe(schema => {
                     this.resetSelection();
@@ -79,20 +70,20 @@ export class ContentsPageComponent implements OnDestroy, OnInit {
                     this.schemaQueries = new Queries(this.uiState, `schemas.${this.schema.name}`);
 
                     this.contentsState.init().pipe(onErrorResumeNext()).subscribe();
-                });
+                }));
 
-        this.contentsSubscription =
+        this.own(
             this.contentsState.contents
                 .subscribe(() => {
                     this.updateSelectionSummary();
-                });
+                }));
 
-        this.languagesSubscription =
+        this.own(
             this.languagesState.languages
                 .subscribe(languages => {
                     this.languages = languages.map(x => x.language);
                     this.language = this.languages.at(0);
-                });
+                }));
     }
 
     public reload() {
@@ -100,7 +91,7 @@ export class ContentsPageComponent implements OnDestroy, OnInit {
     }
 
     public deleteSelected() {
-        this.contentsState.deleteMany(this.select()).pipe(onErrorResumeNext()).subscribe();
+        this.contentsState.deleteMany(this.selectItems()).pipe(onErrorResumeNext()).subscribe();
     }
 
     public delete(content: ContentDto) {
@@ -112,7 +103,7 @@ export class ContentsPageComponent implements OnDestroy, OnInit {
     }
 
     public publishSelected() {
-        this.changeContentItems(this.select(c => c.status !== 'Published'), 'Publish');
+        this.changeContentItems(this.selectItems(c => c.status !== 'Published'), 'Publish');
     }
 
     public unpublish(content: ContentDto) {
@@ -120,7 +111,7 @@ export class ContentsPageComponent implements OnDestroy, OnInit {
     }
 
     public unpublishSelected() {
-        this.changeContentItems(this.select(c => c.status === 'Published'), 'Unpublish');
+        this.changeContentItems(this.selectItems(c => c.status === 'Published'), 'Unpublish');
     }
 
     public archive(content: ContentDto) {
@@ -128,19 +119,19 @@ export class ContentsPageComponent implements OnDestroy, OnInit {
     }
 
     public archiveSelected() {
-        this.changeContentItems(this.select(), 'Archive');
+        this.changeContentItems(this.selectItems(), 'Archive');
     }
 
     public restore(content: ContentDto) {
         this.changeContentItems([content], 'Restore');
     }
 
-    public restoreSelected(scheduled: boolean) {
-        this.changeContentItems(this.select(), 'Restore');
+    public restoreSelected() {
+        this.changeContentItems(this.selectItems(), 'Restore');
     }
 
-    public isSelectedQuery(query: string) {
-        return query === this.contentsState.snapshot.contentsQuery || (!query && !this.contentsState.contentsQuery);
+    public clone(content: ContentDto) {
+        this.contentsState.create(content.dataDraft, false).pipe(onErrorResumeNext()).subscribe();
     }
 
     private changeContentItems(contents: ContentDto[], action: string) {
@@ -158,39 +149,41 @@ export class ContentsPageComponent implements OnDestroy, OnInit {
     }
 
     public goArchive(isArchive: boolean) {
-        this.resetSelection();
-
         this.contentsState.goArchive(isArchive).pipe(onErrorResumeNext()).subscribe();
     }
 
     public goPrev() {
-        this.resetSelection();
-
         this.contentsState.goPrev().pipe(onErrorResumeNext()).subscribe();
     }
 
     public goNext() {
-        this.resetSelection();
-
         this.contentsState.goNext().pipe(onErrorResumeNext()).subscribe();
     }
 
     public search(query: string) {
-        this.resetSelection();
-
         this.contentsState.search(query).pipe(onErrorResumeNext()).subscribe();
-    }
-
-    public isItemSelected(content: ContentDto): boolean {
-        return !!this.selectedItems[content.id];
     }
 
     public selectLanguage(language: AppLanguageDto) {
         this.language = language;
     }
 
+    public isItemSelected(content: ContentDto): boolean {
+        return !!this.selectedItems[content.id];
+    }
+
+    private selectItems(predicate?: (content: ContentDto) => boolean) {
+        return this.contentsState.snapshot.contents.values.filter(c => this.selectedItems[c.id] && (!predicate || predicate(c)));
+    }
+
     public selectItem(content: ContentDto, isSelected: boolean) {
         this.selectedItems[content.id] = isSelected;
+
+        this.updateSelectionSummary();
+    }
+
+    private resetSelection() {
+        this.selectedItems = {};
 
         this.updateSelectionSummary();
     }
@@ -207,18 +200,8 @@ export class ContentsPageComponent implements OnDestroy, OnInit {
         this.updateSelectionSummary();
     }
 
-    public trackByContent(content: ContentDto): string {
+    public trackByContent(index: number, content: ContentDto): string {
         return content.id;
-    }
-
-    private select(predicate?: (content: ContentDto) => boolean) {
-        return this.contentsState.snapshot.contents.values.filter(c => this.selectedItems[c.id] && (!predicate || predicate(c)));
-    }
-
-    private resetSelection() {
-        this.selectedItems = {};
-
-        this.updateSelectionSummary();
     }
 
     private updateSelectionSummary() {

@@ -14,7 +14,7 @@ namespace Squidex.Infrastructure.UsageTracking
 {
     public sealed class CachingUsageTracker : CachingProviderBase, IUsageTracker
     {
-        private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(10);
+        private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
         private readonly IUsageTracker inner;
 
         public CachingUsageTracker(IUsageTracker inner, IMemoryCache cache)
@@ -25,27 +25,45 @@ namespace Squidex.Infrastructure.UsageTracking
             this.inner = inner;
         }
 
-        public Task<IReadOnlyList<StoredUsage>> QueryAsync(string key, DateTime fromDate, DateTime toDate)
+        public Task<IReadOnlyDictionary<string, IReadOnlyList<DateUsage>>> QueryAsync(string key, DateTime fromDate, DateTime toDate)
         {
+            Guard.NotNull(key, nameof(key));
+
             return inner.QueryAsync(key, fromDate, toDate);
         }
 
-        public Task TrackAsync(string key, double weight, double elapsedMs)
+        public Task TrackAsync(string key, string category, double weight, double elapsedMs)
         {
-            return inner.TrackAsync(key, weight, elapsedMs);
+            Guard.NotNull(key, nameof(key));
+
+            return inner.TrackAsync(key, category, weight, elapsedMs);
         }
 
         public Task<long> GetMonthlyCallsAsync(string key, DateTime date)
         {
             Guard.NotNull(key, nameof(key));
 
-            var cacheKey = string.Concat(key, date);
+            var cacheKey = string.Join("$", "Usage", nameof(GetMonthlyCallsAsync), key, date);
 
             return Cache.GetOrCreateAsync(cacheKey, entry =>
             {
                 entry.AbsoluteExpirationRelativeToNow = CacheDuration;
 
                 return inner.GetMonthlyCallsAsync(key, date);
+            });
+        }
+
+        public Task<long> GetPreviousCallsAsync(string key, DateTime fromDate, DateTime toDate)
+        {
+            Guard.NotNull(key, nameof(key));
+
+            var cacheKey = string.Join("$", "Usage", nameof(GetPreviousCallsAsync), key, fromDate, toDate);
+
+            return Cache.GetOrCreateAsync(cacheKey, entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = CacheDuration;
+
+                return inner.GetPreviousCallsAsync(key, fromDate, toDate);
             });
         }
     }

@@ -38,7 +38,7 @@ describe('UsagesService', () => {
     it('should make get request to get calls usages',
         inject([UsagesService, HttpTestingController], (usagesService: UsagesService, httpMock: HttpTestingController) => {
 
-        let usages: CallsUsageDto[];
+        let usages: { [category: string]: CallsUsageDto[] };
 
         usagesService.getCallsUsages('my-app', DateTime.parseISO_UTC('2017-10-12'), DateTime.parseISO_UTC('2017-10-13')).subscribe(result => {
             usages = result;
@@ -49,24 +49,27 @@ describe('UsagesService', () => {
         expect(req.request.method).toEqual('GET');
         expect(req.request.headers.get('If-Match')).toBeNull();
 
-        req.flush([
-            {
-                date: '2017-10-12',
-                count: 10,
-                averageMs: 130
-            },
-            {
-                date: '2017-10-13',
-                count: 13,
-                averageMs: 170
-            }
-        ]);
+        req.flush({
+            category1: [
+                {
+                    date: '2017-10-12',
+                    count: 10,
+                    averageMs: 130
+                },
+                {
+                    date: '2017-10-13',
+                    count: 13,
+                    averageMs: 170
+                }
+            ]
+        });
 
-        expect(usages!).toEqual(
-            [
+        expect(usages!).toEqual({
+            category1: [
                 new CallsUsageDto(DateTime.parseISO_UTC('2017-10-12'), 10, 130),
                 new CallsUsageDto(DateTime.parseISO_UTC('2017-10-13'), 13, 170)
-            ]);
+            ]
+        });
     }));
 
     it('should make get request to get month calls',
@@ -139,5 +142,24 @@ describe('UsagesService', () => {
         req.flush({ size: 130, maxAllowed: 150 });
 
         expect(usages!).toEqual(new CurrentStorageDto(130, 150));
+    }));
+
+    it('should make get request to get log',
+        inject([UsagesService, HttpTestingController], (usagesService: UsagesService, httpMock: HttpTestingController) => {
+
+        let url: string;
+
+        usagesService.getLog('my-app').subscribe(result => {
+            url = result;
+        });
+
+        const req = httpMock.expectOne('http://service/p/api/apps/my-app/usages/log');
+
+        expect(req.request.method).toEqual('GET');
+        expect(req.request.headers.get('If-Match')).toBeNull();
+
+        req.flush({ downloadUrl: 'download/url' });
+
+        expect(url!).toEqual('download/url');
     }));
 });

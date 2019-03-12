@@ -5,6 +5,7 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Squidex.Infrastructure;
@@ -15,12 +16,8 @@ namespace Squidex.Domain.Apps.Core.Apps
     {
         private readonly Language language;
         private readonly Language[] languageFallbacks;
-        private readonly bool isOptional;
 
-        public bool IsOptional
-        {
-            get { return isOptional; }
-        }
+        public bool IsOptional { get; }
 
         public Language Language
         {
@@ -56,10 +53,10 @@ namespace Squidex.Domain.Apps.Core.Apps
         {
             Guard.NotNull(language, nameof(language));
 
-            this.isOptional = isOptional;
+            IsOptional = isOptional;
 
             this.language = language;
-            this.languageFallbacks = fallback ?? new Language[0];
+            this.languageFallbacks = fallback ?? Array.Empty<Language>();
         }
     }
 }

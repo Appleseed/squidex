@@ -12,22 +12,12 @@ namespace Squidex.Shared.Users
 {
     public interface IUser
     {
-        bool IsLocked { get; }
-
         string Id { get; }
 
         string Email { get; }
 
-        string NormalizedEmail { get; }
+        bool IsLocked { get; }
 
         IReadOnlyList<Claim> Claims { get; }
-
-        IReadOnlyList<ExternalLogin> Logins { get; }
-
-        void SetEmail(string email);
-
-        void SetClaim(string type, string value);
-
-        void AddClaim(Claim claim);
     }
 }

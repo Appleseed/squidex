@@ -26,7 +26,6 @@ import {
     UpdateFieldDto,
     UpdateSchemaCategoryDto,
     UpdateSchemaDto,
-    UpdateSchemaScriptsDto,
     Version,
     Versioned
 } from '@app/shared';
@@ -264,7 +263,7 @@ describe('SchemasState', () => {
         });
 
         it('should update script properties and update user info when scripts configured', () => {
-            const request = new UpdateSchemaScriptsDto('query', 'create', 'update', 'delete', 'change');
+            const request = { query: '<query-script>' };
 
             schemasService.setup(x => x.putScripts(app, schema.name, It.isAny(), version))
                 .returns(() => of(new Versioned<any>(newVersion, {})));
@@ -273,18 +272,28 @@ describe('SchemasState', () => {
 
             const schema_1 = <SchemaDetailsDto>schemasState.snapshot.schemas.at(1);
 
-            expect(schema_1.scriptQuery).toEqual('query');
-            expect(schema_1.scriptCreate).toEqual('create');
-            expect(schema_1.scriptUpdate).toEqual('update');
-            expect(schema_1.scriptDelete).toEqual('delete');
-            expect(schema_1.scriptChange).toEqual('change');
+            expect(schema_1.scripts['query']).toEqual('<query-script>');
+            expectToBeModified(schema_1);
+        });
+
+        it('should update script properties and update user info when preview urls configured', () => {
+            const request = { web: 'url' };
+
+            schemasService.setup(x => x.putPreviewUrls(app, schema.name, It.isAny(), version))
+                .returns(() => of(new Versioned<any>(newVersion, {})));
+
+            schemasState.configurePreviewUrls(schema, request, modified).subscribe();
+
+            const schema_1 = <SchemaDetailsDto>schemasState.snapshot.schemas.at(1);
+
+            expect(schema_1.previewUrls).toEqual(request);
             expectToBeModified(schema_1);
         });
 
         it('should add schema to snapshot when created', () => {
             const request = new CreateSchemaDto('newName');
 
-            const result = new SchemaDetailsDto('id4', 'newName', '', {}, false, false, modified, modifier, modified, modifier, version, []);
+            const result = new SchemaDetailsDto('id4', 'newName', '', {}, false, false, modified, modifier, modified, modifier, version);
 
             schemasService.setup(x => x.postSchema(app, request, modifier, modified))
                 .returns(() => of(result));

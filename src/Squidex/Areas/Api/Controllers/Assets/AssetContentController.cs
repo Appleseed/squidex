@@ -9,10 +9,12 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using NSwag.Annotations;
+using Microsoft.Net.Http.Headers;
 using Squidex.Domain.Apps.Entities.Assets.Repositories;
+using Squidex.Infrastructure;
 using Squidex.Infrastructure.Assets;
 using Squidex.Infrastructure.Commands;
+using Squidex.Infrastructure.Log;
 using Squidex.Pipeline;
 
 #pragma warning disable 1573
@@ -22,9 +24,7 @@ namespace Squidex.Areas.Api.Controllers.Assets
     /// <summary>
     /// Uploads and retrieves assets.
     /// </summary>
-    [ApiExceptionFilter]
-    [AppApi]
-    [SwaggerTag(nameof(Assets))]
+    [ApiExplorerSettings(GroupName = nameof(Assets))]
     public sealed class AssetContentController : ApiController
     {
         private readonly IAssetStore assetStore;
@@ -47,6 +47,7 @@ namespace Squidex.Areas.Api.Controllers.Assets
         /// Get the asset content.
         /// </summary>
         /// <param name="id">The id of the asset.</param>
+        /// <param name="more">Optional suffix that can be used to seo-optimize the link to the image Has not effect.</param>
         /// <param name="version">The optional version of the asset.</param>
         /// <param name="width">The target width of the asset, if it is an image.</param>
         /// <param name="height">The target height of the asset, if it is an image.</param>
@@ -56,10 +57,14 @@ namespace Squidex.Areas.Api.Controllers.Assets
         /// 404 => Asset or app not found.
         /// </returns>
         [HttpGet]
-        [Route("assets/{id}/")]
-        [ProducesResponseType(200)]
+        [Route("assets/{id}/{*more}")]
+        [ProducesResponseType(typeof(FileResult), 200)]
         [ApiCosts(0.5)]
-        public async Task<IActionResult> GetAssetContent(Guid id, [FromQuery] int version = -1, [FromQuery] int? width = null, [FromQuery] int? height = null, [FromQuery] string mode = null)
+        public async Task<IActionResult> GetAssetContent(Guid id, string more,
+            [FromQuery] long version = EtagVersion.Any,
+            [FromQuery] int? width = null,
+            [FromQuery] int? height = null,
+            [FromQuery] string mode = null)
         {
             var entity = await assetRepository.FindAssetAsync(id);
 
@@ -68,10 +73,12 @@ namespace Squidex.Areas.Api.Controllers.Assets
                 return NotFound();
             }
 
-            var assetId = entity.Id.ToString();
+            Response.Headers[HeaderNames.ETag] = entity.FileVersion.ToString();
 
-            return new FileCallbackResult(entity.MimeType, entity.FileName, async bodyStream =>
+            return new FileCallbackResult(entity.MimeType, entity.FileName, true, async bodyStream =>
             {
+                var assetId = entity.Id.ToString();
+
                 if (entity.IsImage && (width.HasValue || height.HasValue))
                 {
                     var assetSuffix = $"{width}_{height}_{mode}";
@@ -82,20 +89,32 @@ namespace Squidex.Areas.Api.Controllers.Assets
                     }
                     catch (AssetNotFoundException)
                     {
-                        using (var sourceStream = GetTempStream())
+                        using (Profiler.Trace("Resize"))
                         {
-                            using (var destinationStream = GetTempStream())
+                            using (var sourceStream = GetTempStream())
                             {
-                                await assetStore.DownloadAsync(assetId, entity.FileVersion, null, sourceStream);
-                                sourceStream.Position = 0;
+                                using (var destinationStream = GetTempStream())
+                                {
+                                    using (Profiler.Trace("ResizeDownload"))
+                                    {
+                                        await assetStore.DownloadAsync(assetId, entity.FileVersion, null, sourceStream);
+                                        sourceStream.Position = 0;
+                                    }
 
-                                await assetThumbnailGenerator.CreateThumbnailAsync(sourceStream, destinationStream, width, height, mode);
-                                destinationStream.Position = 0;
+                                    using (Profiler.Trace("ResizeImage"))
+                                    {
+                                        await assetThumbnailGenerator.CreateThumbnailAsync(sourceStream, destinationStream, width, height, mode);
+                                        destinationStream.Position = 0;
+                                    }
 
-                                await assetStore.UploadAsync(assetId, entity.FileVersion, assetSuffix, destinationStream);
-                                destinationStream.Position = 0;
+                                    using (Profiler.Trace("ResizeUpload"))
+                                    {
+                                        await assetStore.UploadAsync(assetId, entity.FileVersion, assetSuffix, destinationStream);
+                                        destinationStream.Position = 0;
+                                    }
 
-                                await destinationStream.CopyToAsync(bodyStream);
+                                    await destinationStream.CopyToAsync(bodyStream);
+                                }
                             }
                         }
                     }

@@ -8,25 +8,25 @@
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
 using NJsonSchema.Infrastructure;
-using NSwag.Annotations;
 using NSwag.SwaggerGeneration.Processors;
 using NSwag.SwaggerGeneration.Processors.Contexts;
 using Squidex.Infrastructure.Tasks;
 
 namespace Squidex.Areas.Api.Config.Swagger
 {
-    public sealed class XmlTagProcessor : IOperationProcessor, IDocumentProcessor
+    public sealed class XmlTagProcessor : IDocumentProcessor
     {
         public Task ProcessAsync(DocumentProcessorContext context)
         {
             foreach (var controllerType in context.ControllerTypes)
             {
-                var tagAttribute = controllerType.GetTypeInfo().GetCustomAttribute<SwaggerTagAttribute>();
+                var attribute = controllerType.GetTypeInfo().GetCustomAttribute<ApiExplorerSettingsAttribute>();
 
-                if (tagAttribute != null)
+                if (attribute != null)
                 {
-                    var tag = context.Document.Tags.FirstOrDefault(x => x.Name == tagAttribute.Name);
+                    var tag = context.Document.Tags.FirstOrDefault(x => x.Name == attribute.GroupName);
 
                     if (tag != null)
                     {
@@ -46,19 +46,6 @@ namespace Squidex.Areas.Api.Config.Swagger
             }
 
             return TaskHelper.Done;
-        }
-
-        public Task<bool> ProcessAsync(OperationProcessorContext context)
-        {
-            var tagAttribute = context.MethodInfo.DeclaringType.GetTypeInfo().GetCustomAttribute<SwaggerTagAttribute>();
-
-            if (tagAttribute != null)
-            {
-                context.OperationDescription.Operation.Tags.Clear();
-                context.OperationDescription.Operation.Tags.Add(tagAttribute.Name);
-            }
-
-            return TaskHelper.True;
         }
     }
 }

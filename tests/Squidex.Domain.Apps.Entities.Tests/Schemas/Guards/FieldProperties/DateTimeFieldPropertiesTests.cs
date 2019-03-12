@@ -5,7 +5,6 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
@@ -43,7 +42,7 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards.FieldProperties
             errors.Should().BeEquivalentTo(
                 new List<ValidationError>
                 {
-                    new ValidationError("Default value must be greater than min value.", "DefaultValue")
+                    new ValidationError("Default value must be greater or equal to min value.", "DefaultValue")
                 });
         }
 
@@ -57,7 +56,7 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards.FieldProperties
             errors.Should().BeEquivalentTo(
                 new List<ValidationError>
                 {
-                    new ValidationError("Default value must be less than max value.", "DefaultValue")
+                    new ValidationError("Default value must be less or equal to max value.", "DefaultValue")
                 });
         }
 
@@ -99,7 +98,7 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards.FieldProperties
             errors.Should().BeEquivalentTo(
                 new List<ValidationError>
                 {
-                    new ValidationError("Calculated default value is not valid.", "CalculatedDefaultValue")
+                    new ValidationError("Calculated default value is not a valid value.", "CalculatedDefaultValue")
                 });
         }
 
@@ -119,7 +118,7 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards.FieldProperties
 
         private static Instant FutureDays(int days)
         {
-            return Instant.FromDateTimeUtc(DateTime.UtcNow.Date.AddDays(days));
+            return SystemClock.Instance.GetCurrentInstant().WithoutMs().Plus(Duration.FromDays(days));
         }
     }
 }

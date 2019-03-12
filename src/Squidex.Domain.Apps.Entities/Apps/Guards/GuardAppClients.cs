@@ -21,11 +21,11 @@ namespace Squidex.Domain.Apps.Entities.Apps.Guards
             {
                 if (string.IsNullOrWhiteSpace(command.Id))
                 {
-                    e("Client id is required.", nameof(command.Id));
+                    e(Not.Defined("Client id"), nameof(command.Id));
                 }
                 else if (clients.ContainsKey(command.Id))
                 {
-                    e($"A client with the same id already exists.");
+                    e("A client with the same id already exists.");
                 }
             });
         }
@@ -40,12 +40,12 @@ namespace Squidex.Domain.Apps.Entities.Apps.Guards
             {
                 if (string.IsNullOrWhiteSpace(command.Id))
                 {
-                    e("Client id is required.", nameof(command.Id));
+                    e(Not.Defined("Client id"), nameof(command.Id));
                 }
             });
         }
 
-        public static void CanUpdate(AppClients clients, UpdateClient command)
+        public static void CanUpdate(AppClients clients, UpdateClient command, Roles roles)
         {
             Guard.NotNull(command, nameof(command));
 
@@ -55,17 +55,17 @@ namespace Squidex.Domain.Apps.Entities.Apps.Guards
             {
                 if (string.IsNullOrWhiteSpace(command.Id))
                 {
-                    e("Client id is required.", nameof(command.Id));
+                    e(Not.Defined("Client id"), nameof(command.Id));
                 }
 
-                if (string.IsNullOrWhiteSpace(command.Name) && command.Permission == null)
+                if (string.IsNullOrWhiteSpace(command.Name) && command.Role == null)
                 {
-                    e("Either name or permission must be defined.", nameof(command.Name), nameof(command.Permission));
+                    e(Not.DefinedOr("name", "role"), nameof(command.Name), nameof(command.Role));
                 }
 
-                if (command.Permission.HasValue && !command.Permission.Value.IsEnumValue())
+                if (command.Role != null && !roles.ContainsKey(command.Role))
                 {
-                    e("Permission is not valid.", nameof(command.Permission));
+                    e(Not.Valid("role"), nameof(command.Role));
                 }
 
                 if (client == null)
@@ -75,12 +75,12 @@ namespace Squidex.Domain.Apps.Entities.Apps.Guards
 
                 if (!string.IsNullOrWhiteSpace(command.Name) && string.Equals(client.Name, command.Name))
                 {
-                    e("Client has already this name.", nameof(command.Name));
+                    e(Not.New("Client", "name"), nameof(command.Name));
                 }
 
-                if (command.Permission == client.Permission)
+                if (command.Role == client.Role)
                 {
-                    e("Client has already this permission.", nameof(command.Permission));
+                    e(Not.New("Client", "role"), nameof(command.Role));
                 }
             });
         }

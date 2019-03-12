@@ -35,25 +35,64 @@ namespace Squidex.Domain.Apps.Entities.Rules.Guards
             return action.Accept(visitor);
         }
 
-        public Task<IEnumerable<ValidationError>> Visit(AssetChangedTrigger trigger)
+        public Task<IEnumerable<ValidationError>> Visit(AssetChangedTriggerV2 trigger)
         {
             return Task.FromResult(Enumerable.Empty<ValidationError>());
         }
 
-        public async Task<IEnumerable<ValidationError>> Visit(ContentChangedTrigger trigger)
+        public Task<IEnumerable<ValidationError>> Visit(SchemaChangedTrigger trigger)
         {
-            if (trigger.Schemas != null)
-            {
-                var schemaErrors = await Task.WhenAll(
-                    trigger.Schemas.Select(async s =>
-                        await SchemaProvider(s.SchemaId) == null
-                            ? new ValidationError($"Schema {s.SchemaId} does not exist.", nameof(trigger.Schemas))
-                            : null));
+            return Task.FromResult(Enumerable.Empty<ValidationError>());
+        }
 
-                return schemaErrors.Where(x => x != null).ToList();
+        public Task<IEnumerable<ValidationError>> Visit(UsageTrigger trigger)
+        {
+            var errors = new List<ValidationError>();
+
+            if (trigger.NumDays.HasValue && (trigger.NumDays < 1 || trigger.NumDays > 30))
+            {
+                errors.Add(new ValidationError(Not.Between("Num days", 1, 30), nameof(trigger.NumDays)));
             }
 
-            return new List<ValidationError>();
+            return Task.FromResult<IEnumerable<ValidationError>>(errors);
+        }
+
+        public async Task<IEnumerable<ValidationError>> Visit(ContentChangedTriggerV2 trigger)
+        {
+            var errors = new List<ValidationError>();
+
+            if (trigger.Schemas != null)
+            {
+                var tasks = new List<Task<ValidationError>>();
+
+                foreach (var schema in trigger.Schemas)
+                {
+                    if (schema.SchemaId == Guid.Empty)
+                    {
+                        errors.Add(new ValidationError(Not.Defined("Schema id"), nameof(trigger.Schemas)));
+                    }
+                    else
+                    {
+                        tasks.Add(CheckSchemaAsync(schema));
+                    }
+                }
+
+                var checkErrors = await Task.WhenAll(tasks);
+
+                errors.AddRange(checkErrors.Where(x => x != null));
+            }
+
+            return errors;
+        }
+
+        private async Task<ValidationError> CheckSchemaAsync(ContentChangedTriggerSchemaV2 schema)
+        {
+            if (await SchemaProvider(schema.SchemaId) == null)
+            {
+                return new ValidationError($"Schema {schema.SchemaId} does not exist.", nameof(ContentChangedTriggerV2.Schemas));
+            }
+
+            return null;
         }
     }
 }

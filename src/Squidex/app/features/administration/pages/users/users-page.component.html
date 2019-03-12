@@ -6,7 +6,7 @@
     </ng-container>
 
     <ng-container menu>
-        <button class="btn btn-link btn-secondary mr-1" (click)="reload()" title="Refresh Users (CTRL + SHIFT + R)">
+        <button type="button" class="btn btn-text-secondary mr-1" (click)="reload()" title="Refresh Users (CTRL + SHIFT + R)">
             <i class="icon-reset"></i> Refresh
         </button>
 
@@ -18,7 +18,7 @@
             <input class="form-control" #inputFind [formControl]="usersFilter" placeholder="Search for user" />
         </form>
 
-        <button class="btn btn-success" #buttonNew routerLink="new" title="New User (CTRL + N)">
+        <button type="button" class="btn btn-success" #buttonNew routerLink="new" title="New User (CTRL + N)">
             <i class="icon-plus"></i> New
         </button>
     </ng-container>
@@ -51,7 +51,7 @@
                     <tbody *ngFor="let userInfo of usersState.users | async; trackBy: trackByUser">
                         <tr [routerLink]="userInfo.user.id" routerLinkActive="active">
                             <td class="cell-user">
-                                <img class="user-picture" [attr.title]="userInfo.user.name" [attr.src]="userInfo.user | sqxUserDtoPicture" />
+                                <img class="user-picture" title="{{userInfo.user.name}}" [attr.src]="userInfo.user | sqxUserDtoPicture" />
                             </td>
                             <td class="cell-auto">
                                 <span class="user-name table-cell">{{userInfo.user.displayName}}</span>
@@ -61,15 +61,15 @@
                             </td>
                             <td class="cell-actions">
                                 <ng-container *ngIf="!userInfo.isCurrentUser">
-                                    <button class="btn btn-link" (click)="lock(userInfo.user); $event.stopPropagation();" *ngIf="!userInfo.user.isLocked" title="Lock User">
+                                    <button type="button" class="btn btn-text" (click)="lock(userInfo.user)" *ngIf="!userInfo.user.isLocked" title="Lock User">
                                         <i class="icon icon-unlocked"></i>
                                     </button>
-                                    <button class="btn btn-link" (click)="unlock(userInfo.user); $event.stopPropagation();" *ngIf="userInfo.user.isLocked" title="Unlock User">
+                                    <button type="button" class="btn btn-text" (click)="unlock(userInfo.user)" *ngIf="userInfo.user.isLocked" title="Unlock User">
                                         <i class="icon icon-lock"></i>
                                     </button>
                                 </ng-container>
 
-                                <button *ngIf="userInfo.isCurrentUser" class="btn btn-link invisible">
+                                <button *ngIf="userInfo.isCurrentUser" class="btn btn-text invisible">
                                     &nbsp;
                                 </button>
                             </td>
@@ -81,7 +81,7 @@
         </div>
 
         <div class="grid-footer">
-            <sqx-pager [pager]="usersState.usersPager | async" (prev)="goPrev()" (next)="goNext()"></sqx-pager>
+            <sqx-pager [pager]="usersState.usersPager | async" (prevPage)="goPrev()" (nextPage)="goNext()"></sqx-pager>
         </div>
     </ng-container>
 </sqx-panel>

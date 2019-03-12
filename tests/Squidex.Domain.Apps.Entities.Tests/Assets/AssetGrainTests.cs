@@ -10,9 +10,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using FakeItEasy;
+using Squidex.Domain.Apps.Core.Tags;
 using Squidex.Domain.Apps.Entities.Assets.Commands;
 using Squidex.Domain.Apps.Entities.Assets.State;
-using Squidex.Domain.Apps.Entities.Tags;
 using Squidex.Domain.Apps.Entities.TestHelpers;
 using Squidex.Domain.Apps.Events.Assets;
 using Squidex.Infrastructure;
@@ -23,7 +23,7 @@ using Xunit;
 
 namespace Squidex.Domain.Apps.Entities.Assets
 {
-    public class AssetGrainTests : HandlerTestBase<AssetGrain, AssetState>
+    public class AssetGrainTests : HandlerTestBase<AssetState>
     {
         private readonly ITagService tagService = A.Fake<ITagService>();
         private readonly ImageInfo image = new ImageInfo(2048, 2048);
@@ -39,10 +39,10 @@ namespace Squidex.Domain.Apps.Entities.Assets
         public AssetGrainTests()
         {
             A.CallTo(() => tagService.NormalizeTagsAsync(AppId, TagGroups.Assets, A<HashSet<string>>.Ignored, A<HashSet<string>>.Ignored))
-                .Returns(new HashSet<string>());
+                .Returns(new Dictionary<string, string>());
 
             sut = new AssetGrain(Store, tagService, A.Dummy<ISemanticLog>());
-            sut.OnActivateAsync(Id).Wait();
+            sut.ActivateAsync(Id).Wait();
         }
 
         [Fact]

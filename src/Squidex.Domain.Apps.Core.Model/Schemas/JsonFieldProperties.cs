@@ -5,11 +5,9 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using Squidex.Infrastructure;
 
 namespace Squidex.Domain.Apps.Core.Schemas
 {
-    [TypeName("JsonField")]
     public sealed class JsonFieldProperties : FieldProperties
     {
         public override T Accept<T>(IFieldPropertiesVisitor<T> visitor)
@@ -22,14 +20,14 @@ namespace Squidex.Domain.Apps.Core.Schemas
             return visitor.Visit((IField<JsonFieldProperties>)field);
         }
 
-        public override RootField CreateRootField(long id, string name, Partitioning partitioning)
+        public override RootField CreateRootField(long id, string name, Partitioning partitioning, IFieldSettings settings = null)
         {
-            return Fields.Json(id, name, partitioning, this);
+            return Fields.Json(id, name, partitioning, this, settings);
         }
 
-        public override NestedField CreateNestedField(long id, string name)
+        public override NestedField CreateNestedField(long id, string name, IFieldSettings settings = null)
         {
-            return Fields.Json(id, name, this);
+            return Fields.Json(id, name, this, settings);
         }
     }
 }

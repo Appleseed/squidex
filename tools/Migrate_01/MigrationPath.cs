@@ -16,7 +16,7 @@ namespace Migrate_01
 {
     public sealed class MigrationPath : IMigrationPath
     {
-        private const int CurrentVersion = 11;
+        private const int CurrentVersion = 14;
         private readonly IServiceProvider serviceProvider;
 
         public MigrationPath(IServiceProvider serviceProvider)
@@ -58,6 +58,12 @@ namespace Migrate_01
                 yield return serviceProvider.GetRequiredService<RebuildSnapshots>();
             }
 
+            // Version 12: Introduce roles.
+            else if (version < 12)
+            {
+                yield return serviceProvider.GetRequiredService<RebuildApps>();
+            }
+
             // Version 09: Grain indexes.
             if (version < 9)
             {
@@ -70,6 +76,18 @@ namespace Migrate_01
             {
                 yield return serviceProvider.GetService<DeleteContentCollections>();
                 yield return serviceProvider.GetRequiredService<RebuildContents>();
+            }
+
+            // Version 13: Json refactoring
+            if (version < 13)
+            {
+                yield return serviceProvider.GetRequiredService<ConvertRuleEventsJson>();
+            }
+
+            // Version 14: Schema refactoring
+            if (version < 14)
+            {
+                yield return serviceProvider.GetRequiredService<ClearSchemas>();
             }
 
             // Version 01: Introduce app patterns.

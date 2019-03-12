@@ -8,48 +8,38 @@
 using System;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Newtonsoft.Json;
-using Squidex.Infrastructure;
+using Squidex.Domain.Apps.Entities.Apps;
 using Squidex.Infrastructure.Log;
 using Squidex.Pipeline;
-
-#pragma warning disable RECS0092 // Convert field to readonly
 
 namespace Squidex.Config.Domain
 {
     public static class LoggingServices
     {
-        private static ILogChannel console = new ConsoleLogChannel();
-        private static ILogChannel file;
-
         public static void AddMyLoggingServices(this IServiceCollection services, IConfiguration config)
         {
             if (config.GetValue<bool>("logging:human"))
             {
-                services.AddSingletonAs(c => new Func<IObjectWriter>(() => new JsonLogWriter(Formatting.Indented, true)));
+                services.AddSingletonAs(JsonLogWriterFactory.Readable())
+                    .As<IObjectWriterFactory>();
             }
             else
             {
-                services.AddSingletonAs(c => new Func<IObjectWriter>(() => new JsonLogWriter()));
+                services.AddSingletonAs(JsonLogWriterFactory.Default())
+                    .As<IObjectWriterFactory>();
             }
 
             var loggingFile = config.GetValue<string>("logging:file");
 
             if (!string.IsNullOrWhiteSpace(loggingFile))
             {
-                services.AddSingletonAs(file ?? (file = new FileChannel(loggingFile)))
-                    .As<ILogChannel>()
-                    .As<IInitializable>();
+                services.AddSingletonAs(new FileChannel(loggingFile))
+                    .As<ILogChannel>();
             }
 
             var useColors = config.GetValue<bool>("logging:colors");
 
-            if (console == null)
-            {
-                console = new ConsoleLogChannel(useColors);
-            }
-
-            services.AddSingletonAs(console)
+            services.AddSingletonAs(new ConsoleLogChannel(useColors))
                 .As<ILogChannel>();
 
             services.AddSingletonAs(c => new ApplicationInfoLogAppender(typeof(Program).Assembly, Guid.NewGuid()))
@@ -66,6 +56,12 @@ namespace Squidex.Config.Domain
 
             services.AddSingletonAs<SemanticLog>()
                 .As<ISemanticLog>();
+
+            services.AddSingletonAs<DefaultAppLogStore>()
+                .As<IAppLogStore>();
+
+            services.AddSingletonAs<NoopLogStore>()
+                .As<ILogStore>();
         }
     }
 }

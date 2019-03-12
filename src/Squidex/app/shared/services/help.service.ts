@@ -8,7 +8,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { catchError } from 'rxjs/operators';
 
 @Injectable()
 export class HelpService {
@@ -17,21 +17,10 @@ export class HelpService {
     ) {
     }
 
-    public getHelp(helpPage: string): Observable<string[]> {
-        const url = `https://api.gitbook.com/book/squidex/squidex/contents/${helpPage}.json`;
+    public getHelp(helpPage: string): Observable<string> {
+        const url = `https://raw.githubusercontent.com/Squidex/squidex-docs/master/${helpPage}.md`;
 
-        return this.http.get(url).pipe(
-            map((response: any) => {
-                const result: string[] = [];
-
-                for (let section of response.sections) {
-                    const content = section.content.replace(/href="\.\.\/GLOSSARY\.html/g, 'target="_blank" href="https://docs.squidex.io/GLOSSARY.html');
-
-                    result.push(content);
-                }
-
-                return result;
-            }),
-            catchError(error => of([])));
+        return this.http.get(url, { responseType: 'text' }).pipe(
+                catchError(_ => of('')));
     }
 }

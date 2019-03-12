@@ -9,38 +9,37 @@ using Microsoft.Extensions.DependencyInjection;
 using Migrate_01;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
-using NodaTime;
-using NodaTime.Serialization.JsonNet;
 using Squidex.Domain.Apps.Core;
 using Squidex.Domain.Apps.Core.Apps.Json;
+using Squidex.Domain.Apps.Core.HandleRules;
 using Squidex.Domain.Apps.Core.Rules.Json;
 using Squidex.Domain.Apps.Core.Schemas;
 using Squidex.Domain.Apps.Core.Schemas.Json;
 using Squidex.Domain.Apps.Events;
-using Squidex.Domain.Apps.Rules.Actions;
+using Squidex.Extensions.Actions;
 using Squidex.Infrastructure;
-using Squidex.Infrastructure.EventSourcing;
 using Squidex.Infrastructure.Json;
+using Squidex.Infrastructure.Json.Newtonsoft;
 
 namespace Squidex.Config.Domain
 {
     public static class SerializationServices
     {
         private static readonly TypeNameRegistry TypeNameRegistry =
-             new TypeNameRegistry()
-                 .MapUnmapped(SquidexCoreModel.Assembly)
-                 .MapUnmapped(SquidexEvents.Assembly)
-                 .MapUnmapped(SquidexInfrastructure.Assembly)
-                 .MapUnmapped(SquidexMigrations.Assembly);
-        private static readonly FieldRegistry FieldRegistry = new FieldRegistry(TypeNameRegistry);
+            new TypeNameRegistry()
+                .MapFields()
+                .MapRules()
+                .MapRuleActions()
+                .MapUnmapped(SquidexCoreModel.Assembly)
+                .MapUnmapped(SquidexEvents.Assembly)
+                .MapUnmapped(SquidexInfrastructure.Assembly)
+                .MapUnmapped(SquidexMigrations.Assembly);
 
         public static readonly JsonSerializerSettings DefaultJsonSettings = new JsonSerializerSettings();
         public static readonly JsonSerializer DefaultJsonSerializer;
 
         private static void ConfigureJson(JsonSerializerSettings settings, TypeNameHandling typeNameHandling)
         {
-            RuleActionRegistry.RegisterTypes(TypeNameRegistry);
-
             settings.SerializationBinder = new TypeNameSerializationBinder(TypeNameRegistry);
 
             settings.ContractResolver = new ConverterContractResolver(
@@ -48,17 +47,18 @@ namespace Squidex.Config.Domain
                 new AppContributorsConverter(),
                 new AppPatternsConverter(),
                 new ClaimsPrincipalConverter(),
+                new EnvelopeHeadersConverter(),
                 new InstantConverter(),
+                new JsonValueConverter(),
                 new LanguageConverter(),
                 new LanguagesConfigConverter(),
                 new NamedGuidIdConverter(),
                 new NamedLongIdConverter(),
                 new NamedStringIdConverter(),
-                new PropertiesBagConverter<EnvelopeHeaders>(),
-                new PropertiesBagConverter<PropertiesBag>(),
                 new RefTokenConverter(),
+                new RolesConverter(),
                 new RuleConverter(),
-                new SchemaConverter(FieldRegistry),
+                new SchemaConverter(),
                 new StringEnumConverter());
 
             settings.NullValueHandling = NullValueHandling.Ignore;
@@ -67,8 +67,6 @@ namespace Squidex.Config.Domain
             settings.DateParseHandling = DateParseHandling.None;
 
             settings.TypeNameHandling = typeNameHandling;
-
-            settings.ConfigureForNodaTime(DateTimeZoneProviders.Tzdb);
         }
 
         static SerializationServices()
@@ -80,10 +78,11 @@ namespace Squidex.Config.Domain
 
         public static IServiceCollection AddMySerializers(this IServiceCollection services)
         {
-            services.AddSingleton(FieldRegistry);
             services.AddSingleton(DefaultJsonSettings);
             services.AddSingleton(DefaultJsonSerializer);
             services.AddSingleton(TypeNameRegistry);
+
+            services.AddSingleton<IJsonSerializer>(new NewtonsoftJsonSerializer(DefaultJsonSettings));
 
             return services;
         }

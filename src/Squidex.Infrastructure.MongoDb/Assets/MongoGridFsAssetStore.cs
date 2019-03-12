@@ -27,11 +27,11 @@ namespace Squidex.Infrastructure.Assets
             this.bucket = bucket;
         }
 
-        public void Initialize()
+        public async Task InitializeAsync(CancellationToken ct = default)
         {
             try
             {
-                bucket.Database.ListCollections();
+                await bucket.Database.ListCollectionsAsync(cancellationToken: ct);
             }
             catch (MongoException ex)
             {
@@ -39,12 +39,12 @@ namespace Squidex.Infrastructure.Assets
             }
         }
 
-        public string GenerateSourceUrl(string id, long version, string suffix)
+        public string GeneratePublicUrl(string id, long version, string suffix)
         {
-            return "UNSUPPORTED";
+            return null;
         }
 
-        public async Task CopyAsync(string sourceFileName, string id, long version, string suffix, CancellationToken ct = default(CancellationToken))
+        public async Task CopyAsync(string sourceFileName, string id, long version, string suffix, CancellationToken ct = default)
         {
             try
             {
@@ -61,7 +61,7 @@ namespace Squidex.Infrastructure.Assets
             }
         }
 
-        public async Task DownloadAsync(string id, long version, string suffix, Stream stream, CancellationToken ct = default(CancellationToken))
+        public async Task DownloadAsync(string id, long version, string suffix, Stream stream, CancellationToken ct = default)
         {
             try
             {
@@ -69,7 +69,7 @@ namespace Squidex.Infrastructure.Assets
 
                 using (var readStream = await bucket.OpenDownloadStreamAsync(name, cancellationToken: ct))
                 {
-                    await readStream.CopyToAsync(stream, BufferSize);
+                    await readStream.CopyToAsync(stream, BufferSize, ct);
                 }
             }
             catch (GridFSFileNotFoundException ex)
@@ -78,12 +78,12 @@ namespace Squidex.Infrastructure.Assets
             }
         }
 
-        public Task UploadAsync(string id, long version, string suffix, Stream stream, CancellationToken ct = default(CancellationToken))
+        public Task UploadAsync(string id, long version, string suffix, Stream stream, CancellationToken ct = default)
         {
             return UploadFileCoreAsync(GetFileName(id, version, suffix), stream, ct);
         }
 
-        public Task UploadAsync(string fileName, Stream stream, CancellationToken ct = default(CancellationToken))
+        public Task UploadAsync(string fileName, Stream stream, CancellationToken ct = default)
         {
             return UploadFileCoreAsync(fileName, stream, ct);
         }
@@ -110,7 +110,7 @@ namespace Squidex.Infrastructure.Assets
             }
         }
 
-        private async Task UploadFileCoreAsync(string id, Stream stream, CancellationToken ct = default(CancellationToken))
+        private async Task UploadFileCoreAsync(string id, Stream stream, CancellationToken ct = default)
         {
             try
             {

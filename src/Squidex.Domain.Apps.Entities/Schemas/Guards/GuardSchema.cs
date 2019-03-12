@@ -25,67 +25,24 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards
             {
                 if (!command.Name.IsSlug())
                 {
-                    e("Name is not a valid slug.", nameof(command.Name));
+                    e(Not.ValidSlug("Name"), nameof(command.Name));
                 }
                 else if (await appProvider.GetSchemaAsync(command.AppId.Id, command.Name) != null)
                 {
                     e("A schema with the same name already exists.");
                 }
 
-                if (command.Fields?.Count > 0)
-                {
-                    var fieldIndex = 0;
-                    var fieldPrefix = string.Empty;
+                ValidateUpsert(command, e);
+            });
+        }
 
-                    foreach (var field in command.Fields)
-                    {
-                        fieldIndex++;
-                        fieldPrefix = $"Fields[{fieldIndex}]";
+        public static void CanSynchronize(SynchronizeSchema command)
+        {
+            Guard.NotNull(command, nameof(command));
 
-                        if (!field.Partitioning.IsValidPartitioning())
-                        {
-                            e("Field partitioning is not valid.", $"{fieldPrefix}.{nameof(field.Partitioning)}");
-                        }
-
-                        ValidateField(e, fieldPrefix, field);
-
-                        if (field.Nested?.Count > 0)
-                        {
-                            if (field.Properties is ArrayFieldProperties)
-                            {
-                                var nestedIndex = 0;
-                                var nestedPrefix = string.Empty;
-
-                                foreach (var nestedField in field.Nested)
-                                {
-                                    nestedIndex++;
-                                    nestedPrefix = $"{fieldPrefix}.Nested[{nestedIndex}]";
-
-                                    if (nestedField.Properties is ArrayFieldProperties)
-                                    {
-                                        e("Nested field cannot be array fields.", $"{nestedPrefix}.{nameof(nestedField.Properties)}");
-                                    }
-
-                                    ValidateField(e, nestedPrefix, nestedField);
-                                }
-                            }
-                            else if (field.Nested.Count > 0)
-                            {
-                                e("Only array fields can have nested fields.", $"{fieldPrefix}.{nameof(field.Partitioning)}");
-                            }
-
-                            if (field.Nested.Select(x => x.Name).Distinct().Count() != field.Nested.Count)
-                            {
-                                e("Fields cannot have duplicate names.", $"{fieldPrefix}.Nested");
-                            }
-                        }
-                    }
-
-                    if (command.Fields.Select(x => x.Name).Distinct().Count() != command.Fields.Count)
-                    {
-                        e("Fields cannot have duplicate names.", nameof(command.Fields));
-                    }
-                }
+            Validate.It(() => "Cannot synchronize schema.", e =>
+            {
+                ValidateUpsert(command, e);
             });
         }
 
@@ -114,6 +71,19 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards
                 else
                 {
                     ValidateFieldIds(error, command, arrayField.FieldsById);
+                }
+            });
+        }
+
+        public static void CanConfigurePreviewUrls(ConfigurePreviewUrls command)
+        {
+            Guard.NotNull(command, nameof(command));
+
+            Validate.It(() => "Cannot configure preview urls.", error =>
+            {
+                if (command.PreviewUrls == null)
+                {
+                    error("Preview Urls is required.", nameof(command.PreviewUrls));
                 }
             });
         }
@@ -158,7 +128,65 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards
             Guard.NotNull(command, nameof(command));
         }
 
-        private static void ValidateField(AddValidation e, string prefix, CreateSchemaFieldBase field)
+        private static void ValidateUpsert(UpsertCommand command, AddValidation e)
+        {
+            if (command.Fields?.Count > 0)
+            {
+                var fieldIndex = 0;
+                var fieldPrefix = string.Empty;
+
+                foreach (var field in command.Fields)
+                {
+                    fieldIndex++;
+                    fieldPrefix = $"Fields[{fieldIndex}]";
+
+                    if (!field.Partitioning.IsValidPartitioning())
+                    {
+                        e(Not.Valid("Partitioning"), $"{fieldPrefix}.{nameof(field.Partitioning)}");
+                    }
+
+                    ValidateField(field, fieldPrefix, e);
+
+                    if (field.Nested?.Count > 0)
+                    {
+                        if (field.Properties is ArrayFieldProperties)
+                        {
+                            var nestedIndex = 0;
+                            var nestedPrefix = string.Empty;
+
+                            foreach (var nestedField in field.Nested)
+                            {
+                                nestedIndex++;
+                                nestedPrefix = $"{fieldPrefix}.Nested[{nestedIndex}]";
+
+                                if (nestedField.Properties is ArrayFieldProperties)
+                                {
+                                    e("Nested field cannot be array fields.", $"{nestedPrefix}.{nameof(nestedField.Properties)}");
+                                }
+
+                                ValidateField(nestedField, nestedPrefix, e);
+                            }
+                        }
+                        else if (field.Nested.Count > 0)
+                        {
+                            e("Only array fields can have nested fields.", $"{fieldPrefix}.{nameof(field.Partitioning)}");
+                        }
+
+                        if (field.Nested.Select(x => x.Name).Distinct().Count() != field.Nested.Count)
+                        {
+                            e("Fields cannot have duplicate names.", $"{fieldPrefix}.Nested");
+                        }
+                    }
+                }
+
+                if (command.Fields.Select(x => x.Name).Distinct().Count() != command.Fields.Count)
+                {
+                    e("Fields cannot have duplicate names.", nameof(command.Fields));
+                }
+            }
+        }
+
+        private static void ValidateField(UpsertSchemaFieldBase field, string prefix, AddValidation e)
         {
             if (!field.Name.IsPropertyName())
             {
@@ -167,7 +195,7 @@ namespace Squidex.Domain.Apps.Entities.Schemas.Guards
 
             if (field.Properties == null)
             {
-                e("Field properties is required.", $"{prefix}.{nameof(field.Properties)}");
+               e(Not.Defined("Field properties"), $"{prefix}.{nameof(field.Properties)}");
             }
             else
             {

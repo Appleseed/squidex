@@ -37,7 +37,7 @@ $color-apps-border: #65a6ff;
     }
 }
 
-.drodown-button {
+.dropdown-button {
     padding: 1rem 1.5rem;
 }
 
@@ -45,8 +45,22 @@ $color-apps-border: #65a6ff;
     @include absolute(2.65rem, auto, auto, auto);
 }
 
+.dropdown-item {
+    @include border-radius(0);
+}
+
+.btn-block {
+    white-space: nowrap;
+}
+
 .icon-plus {
     font-size: .8rem;
+}
+
+.apps-list {
+    max-height: 600px;
+    margin: -.5rem 0;
+    overflow-y: auto;
 }
 
 .all-apps {

@@ -6,23 +6,23 @@
 // ==========================================================================
 
 using System;
-using System.Collections.Immutable;
 using System.Threading.Tasks;
 using FakeItEasy;
+using Squidex.Domain.Apps.Core.Rules;
 using Squidex.Domain.Apps.Core.Rules.Triggers;
 using Squidex.Domain.Apps.Entities.Rules.Commands;
 using Squidex.Domain.Apps.Entities.Rules.State;
 using Squidex.Domain.Apps.Entities.TestHelpers;
 using Squidex.Domain.Apps.Events.Rules;
-using Squidex.Domain.Apps.Rules.Action.Webhook;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.Collections;
 using Squidex.Infrastructure.Commands;
 using Squidex.Infrastructure.Log;
 using Xunit;
 
 namespace Squidex.Domain.Apps.Entities.Rules
 {
-    public class RuleGrainTests : HandlerTestBase<RuleGrain, RuleState>
+    public class RuleGrainTests : HandlerTestBase<RuleState>
     {
         private readonly IAppProvider appProvider = A.Fake<IAppProvider>();
         private readonly Guid ruleId = Guid.NewGuid();
@@ -33,10 +33,15 @@ namespace Squidex.Domain.Apps.Entities.Rules
             get { return ruleId; }
         }
 
+        public sealed class TestAction : RuleAction
+        {
+            public Uri Url { get; set; }
+        }
+
         public RuleGrainTests()
         {
             sut = new RuleGrain(Store, A.Dummy<ISemanticLog>(), appProvider);
-            sut.OnActivateAsync(Id).Wait();
+            sut.ActivateAsync(Id).Wait();
         }
 
         [Fact]
@@ -182,14 +187,14 @@ namespace Squidex.Domain.Apps.Entities.Rules
             return CreateCommand(command);
         }
 
-        private CreateRule MakeCreateCommand()
+        private static CreateRule MakeCreateCommand()
         {
-            var newTrigger = new ContentChangedTrigger
+            var newTrigger = new ContentChangedTriggerV2
             {
-                Schemas = ImmutableList<ContentChangedTriggerSchema>.Empty
+                Schemas = ReadOnlyCollection.Empty<ContentChangedTriggerSchemaV2>()
             };
 
-            var newAction = new WebhookAction
+            var newAction = new TestAction
             {
                 Url = new Uri("https://squidex.io/v2")
             };
@@ -199,12 +204,12 @@ namespace Squidex.Domain.Apps.Entities.Rules
 
         private static UpdateRule MakeUpdateCommand()
         {
-            var newTrigger = new ContentChangedTrigger
+            var newTrigger = new ContentChangedTriggerV2
             {
-                Schemas = ImmutableList<ContentChangedTriggerSchema>.Empty
+                Schemas = ReadOnlyCollection.Empty<ContentChangedTriggerSchemaV2>()
             };
 
-            var newAction = new WebhookAction
+            var newAction = new TestAction
             {
                 Url = new Uri("https://squidex.io/v2")
             };

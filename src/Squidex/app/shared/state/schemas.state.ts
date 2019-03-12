@@ -34,8 +34,7 @@ import {
     SchemasService,
     UpdateFieldDto,
     UpdateSchemaCategoryDto,
-    UpdateSchemaDto,
-    UpdateSchemaScriptsDto
+    UpdateSchemaDto
 } from './../services/schemas.service';
 
 import { FieldPropertiesDto } from './../services/schemas.types';
@@ -45,7 +44,6 @@ type AnyFieldDto = NestedFieldDto | RootFieldDto;
 interface Snapshot {
     categories: { [name: string]: boolean };
 
-    schemasApp?: string;
     schemas: ImmutableArray<SchemaDto>;
 
     isLoaded?: boolean;
@@ -53,11 +51,19 @@ interface Snapshot {
     selectedSchema?: SchemaDetailsDto | null;
 }
 
+function sameSchema(lhs: SchemaDetailsDto | null, rhs?: SchemaDetailsDto | null): boolean {
+    return lhs === rhs || (!!lhs && !!rhs && lhs.id === rhs.id && lhs.version === rhs.version);
+}
+
 @Injectable()
 export class SchemasState extends State<Snapshot> {
+    public get schemaName() {
+        return this.snapshot.selectedSchema ? this.snapshot.selectedSchema.name : '';
+    }
+
     public selectedSchema =
         this.changes.pipe(map(x => x.selectedSchema),
-            distinctUntilChanged());
+            distinctUntilChanged(sameSchema));
 
     public categories =
         this.changes.pipe(map(x => ImmutableArray.of(Object.keys(x.categories)).sortByStringAsc(s => s)),
@@ -75,10 +81,6 @@ export class SchemasState extends State<Snapshot> {
         this.changes.pipe(map(x => !!x.isLoaded),
             distinctUntilChanged());
 
-    public get schemaName() {
-        return this.snapshot.selectedSchema!.name;
-    }
-
     constructor(
         private readonly appsState: AppsState,
         private readonly authState: AuthService,
@@ -90,11 +92,11 @@ export class SchemasState extends State<Snapshot> {
 
     public select(idOrName: string | null): Observable<SchemaDetailsDto | null> {
         return this.loadSchema(idOrName).pipe(
-            tap(schema => {
+            tap(selectedSchema => {
                 this.next(s => {
-                    const schemas = schema ? s.schemas.replaceBy('id', schema) : s.schemas;
+                    const schemas = selectedSchema ? s.schemas.replaceBy('id', selectedSchema) : s.schemas;
 
-                    return { ...s, selectedSchema: schema, schemas };
+                    return { ...s, selectedSchema, schemas };
                 });
             }));
     }
@@ -121,7 +123,7 @@ export class SchemasState extends State<Snapshot> {
 
                     const categories = buildCategories(s.categories, schemas);
 
-                    return { ...s, schemas, schemasApp: this.appName, isLoaded: true, categories };
+                    return { ...s, schemas, isLoaded: true, categories };
                 });
             }),
             notify(this.dialogs));
@@ -140,7 +142,7 @@ export class SchemasState extends State<Snapshot> {
 
     public delete(schema: SchemaDto): Observable<any> {
         return this.schemasService.deleteSchema(this.appName, schema.name, schema.version).pipe(
-            tap(dto => {
+            tap(() => {
                 return this.next(s => {
                     const schemas = s.schemas.filter(x => x.id !== schema.id);
                     const selectedSchema = s.selectedSchema && s.selectedSchema.id === schema.id ? null : s.selectedSchema;
@@ -191,7 +193,15 @@ export class SchemasState extends State<Snapshot> {
             notify(this.dialogs));
     }
 
-    public configureScripts(schema: SchemaDetailsDto, request: UpdateSchemaScriptsDto, now?: DateTime): Observable<any> {
+    public configurePreviewUrls(schema: SchemaDetailsDto, request: {}, now?: DateTime): Observable<any> {
+        return this.schemasService.putPreviewUrls(this.appName, schema.name, request, schema.version).pipe(
+            tap(dto => {
+                this.replaceSchema(configurePreviewUrls(schema, request, this.user, dto.version, now));
+            }),
+            notify(this.dialogs));
+    }
+
+    public configureScripts(schema: SchemaDetailsDto, request: {}, now?: DateTime): Observable<any> {
         return this.schemasService.putScripts(this.appName, schema.name, request, schema.version).pipe(
             tap(dto => {
                 this.replaceSchema(configureScripts(schema, request, this.user, dto.version, now));
@@ -314,7 +324,7 @@ export class SchemasState extends State<Snapshot> {
     private replaceSchema(schema: SchemaDto) {
         return this.next(s => {
             const schemas = s.schemas.replaceBy('id', schema).sortByStringAsc(x => x.displayName);
-            const selectedSchema = s.selectedSchema && s.selectedSchema.id === schema.id ? schema : s.selectedSchema;
+            const selectedSchema = Types.is(schema, SchemaDetailsDto) && s.selectedSchema && s.selectedSchema.id === schema.id ? schema : s.selectedSchema;
 
             const categories = buildCategories(s.categories, schemas);
 
@@ -370,7 +380,6 @@ const setPublished = <T extends SchemaDto>(schema: T, isPublished: boolean, user
         version
     });
 
-
 const changeCategory = <T extends SchemaDto>(schema: T, category: string, user: string, version: Version, now?: DateTime) =>
     <T>schema.with({
         category,
@@ -379,9 +388,17 @@ const changeCategory = <T extends SchemaDto>(schema: T, category: string, user: 
         version
     });
 
-const configureScripts = (schema: SchemaDetailsDto, scripts: UpdateSchemaScriptsDto, user: string, version: Version, now?: DateTime) =>
+const configurePreviewUrls = (schema: SchemaDetailsDto, previewUrls: {}, user: string, version: Version, now?: DateTime) =>
     schema.with({
-        ...scripts,
+        previewUrls,
+        lastModified: now || DateTime.now(),
+        lastModifiedBy: user,
+        version
+    });
+
+const configureScripts = (schema: SchemaDetailsDto, scripts: {}, user: string, version: Version, now?: DateTime) =>
+    schema.with({
+        scripts,
         lastModified: now || DateTime.now(),
         lastModifiedBy: user,
         version

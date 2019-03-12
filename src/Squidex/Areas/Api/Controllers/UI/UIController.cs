@@ -8,24 +8,17 @@
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using NSwag.Annotations;
 using Orleans;
 using Squidex.Areas.Api.Controllers.UI.Models;
 using Squidex.Config;
 using Squidex.Domain.Apps.Entities.Apps;
-using Squidex.Domain.Apps.Rules.Action.Twitter;
+using Squidex.Extensions.Actions.Twitter;
 using Squidex.Infrastructure.Commands;
+using Squidex.Infrastructure.Orleans;
 using Squidex.Pipeline;
 
 namespace Squidex.Areas.Api.Controllers.UI
 {
-    /// <summary>
-    /// Manages ui settings and configs.
-    /// </summary>
-    [ApiAuthorize]
-    [ApiExceptionFilter]
-    [AppApi]
-    [SwaggerTag(nameof(UI))]
     public sealed class UIController : ApiController
     {
         private readonly MyUIOptions uiOptions;
@@ -54,14 +47,15 @@ namespace Squidex.Areas.Api.Controllers.UI
         [HttpGet]
         [Route("apps/{app}/ui/settings/")]
         [ProducesResponseType(typeof(UISettingsDto), 200)]
-        [ApiCosts(0)]
+        [ApiPermission]
         public async Task<IActionResult> GetSettings(string app)
         {
-            var result = await grainFactory.GetGrain<IAppUISettingsGrain>(App.Id).GetAsync();
+            var result = await grainFactory.GetGrain<IAppUISettingsGrain>(AppId).GetAsync();
 
-            result.Value["mapType"] = uiOptions.Map?.Type ?? "OSM";
-            result.Value["mapKey"] = uiOptions.Map?.GoogleMaps?.Key;
-            result.Value["supportTwitterAction"] = twitterOptions.IsConfigured();
+            result.Value.Add("mapType", uiOptions.Map?.Type ?? "OSM");
+            result.Value.Add("mapKey", uiOptions.Map?.GoogleMaps?.Key);
+
+            result.Value.Add("supportTwitterAction", twitterOptions.IsConfigured());
 
             return Ok(result.Value);
         }
@@ -78,10 +72,10 @@ namespace Squidex.Areas.Api.Controllers.UI
         /// </returns>
         [HttpPut]
         [Route("apps/{app}/ui/settings/{key}")]
-        [ApiCosts(0)]
+        [ApiPermission]
         public async Task<IActionResult> PutSetting(string app, string key, [FromBody] UpdateSettingDto request)
         {
-            await grainFactory.GetGrain<IAppUISettingsGrain>(App.Id).SetAsync(key, request.Value);
+            await grainFactory.GetGrain<IAppUISettingsGrain>(AppId).SetAsync(key, request.Value.AsJ());
 
             return NoContent();
         }
@@ -97,10 +91,10 @@ namespace Squidex.Areas.Api.Controllers.UI
         /// </returns>
         [HttpDelete]
         [Route("apps/{app}/ui/settings/{key}")]
-        [ApiCosts(0)]
+        [ApiPermission]
         public async Task<IActionResult> DeleteSetting(string app, string key)
         {
-            await grainFactory.GetGrain<IAppUISettingsGrain>(App.Id).RemoveAsync(key);
+            await grainFactory.GetGrain<IAppUISettingsGrain>(AppId).RemoveAsync(key);
 
             return NoContent();
         }

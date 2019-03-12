@@ -7,11 +7,12 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Squidex.Domain.Apps.Entities.Backup;
-using Squidex.Domain.Apps.Entities.Contents.Repositories;
 using Squidex.Domain.Apps.Entities.Contents.State;
 using Squidex.Domain.Apps.Events.Contents;
+using Squidex.Domain.Apps.Events.Schemas;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.EventSourcing;
 using Squidex.Infrastructure.States;
@@ -21,33 +22,34 @@ namespace Squidex.Domain.Apps.Entities.Contents
 {
     public sealed class BackupContents : BackupHandlerWithStore
     {
-        private readonly HashSet<Guid> contentIds = new HashSet<Guid>();
-        private readonly IContentRepository contentRepository;
+        private readonly Dictionary<Guid, HashSet<Guid>> contentIdsBySchemaId = new Dictionary<Guid, HashSet<Guid>>();
 
         public override string Name { get; } = "Contents";
 
-        public BackupContents(IStore<Guid> store, IContentRepository contentRepository)
+        public BackupContents(IStore<Guid> store)
             : base(store)
         {
-            Guard.NotNull(contentRepository, nameof(contentRepository));
-
-            this.contentRepository = contentRepository;
         }
 
-        public override Task RestoreEventAsync(Envelope<IEvent> @event, Guid appId, BackupReader reader, RefToken actor)
+        public override Task<bool> RestoreEventAsync(Envelope<IEvent> @event, Guid appId, BackupReader reader, RefToken actor)
         {
             switch (@event.Payload)
             {
                 case ContentCreated contentCreated:
-                    contentIds.Add(contentCreated.ContentId);
+                    contentIdsBySchemaId.GetOrAddNew(contentCreated.SchemaId.Id).Add(contentCreated.ContentId);
+                    break;
+                case SchemaDeleted schemaDeleted:
+                    contentIdsBySchemaId.Remove(schemaDeleted.SchemaId.Id);
                     break;
             }
 
-            return TaskHelper.Done;
+            return TaskHelper.True;
         }
 
         public override Task RestoreAsync(Guid appId, BackupReader reader)
         {
+            var contentIds = contentIdsBySchemaId.Values.SelectMany(x => x);
+
             return RebuildManyAsync(contentIds, id => RebuildAsync<ContentState, ContentGrain>(id, (e, s) => s.Apply(e)));
         }
     }

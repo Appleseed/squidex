@@ -13,8 +13,10 @@ using Migrate_01;
 using Migrate_01.Migrations;
 using Orleans;
 using Squidex.Domain.Apps.Core.Apps;
+using Squidex.Domain.Apps.Core.ConvertContent;
 using Squidex.Domain.Apps.Core.HandleRules;
 using Squidex.Domain.Apps.Core.Scripting;
+using Squidex.Domain.Apps.Core.Tags;
 using Squidex.Domain.Apps.Entities;
 using Squidex.Domain.Apps.Entities.Apps;
 using Squidex.Domain.Apps.Entities.Apps.Commands;
@@ -23,6 +25,8 @@ using Squidex.Domain.Apps.Entities.Apps.Templates;
 using Squidex.Domain.Apps.Entities.Assets;
 using Squidex.Domain.Apps.Entities.Assets.Commands;
 using Squidex.Domain.Apps.Entities.Backup;
+using Squidex.Domain.Apps.Entities.Comments;
+using Squidex.Domain.Apps.Entities.Comments.Commands;
 using Squidex.Domain.Apps.Entities.Contents;
 using Squidex.Domain.Apps.Entities.Contents.Commands;
 using Squidex.Domain.Apps.Entities.Contents.Edm;
@@ -31,11 +35,14 @@ using Squidex.Domain.Apps.Entities.History;
 using Squidex.Domain.Apps.Entities.Rules;
 using Squidex.Domain.Apps.Entities.Rules.Commands;
 using Squidex.Domain.Apps.Entities.Rules.Indexes;
+using Squidex.Domain.Apps.Entities.Rules.UsageTracking;
 using Squidex.Domain.Apps.Entities.Schemas;
+using Squidex.Domain.Apps.Entities.Schemas.Commands;
 using Squidex.Domain.Apps.Entities.Schemas.Indexes;
 using Squidex.Domain.Apps.Entities.Tags;
 using Squidex.Infrastructure.Assets;
 using Squidex.Infrastructure.Commands;
+using Squidex.Infrastructure.EventSourcing;
 using Squidex.Infrastructure.Migrations;
 using Squidex.Pipeline;
 using Squidex.Pipeline.CommandMiddlewares;
@@ -52,7 +59,15 @@ namespace Squidex.Config.Domain
                     c.GetRequiredService<IOptions<MyUrlsOptions>>(),
                     c.GetRequiredService<IAssetStore>(),
                     exposeSourceUrl))
-                .As<IGraphQLUrlGenerator>().As<IRuleUrlGenerator>();
+                .As<IGraphQLUrlGenerator>().As<IRuleUrlGenerator>().As<IAssetUrlGenerator>();
+
+            services.AddSingletonAs<HistoryService>()
+                .As<IEventConsumer>()
+                .As<IHistoryService>();
+
+            services.AddSingletonAs<AssetUsageTracker>()
+                .As<IEventConsumer>()
+                .As<IAssetUsageTracker>();
 
             services.AddSingletonAs<CachingGraphQLService>()
                 .As<IGraphQLService>();
@@ -80,6 +95,9 @@ namespace Squidex.Config.Domain
 
             services.AddSingletonAs<SchemaHistoryEventsCreator>()
                 .As<IHistoryEventsCreator>();
+
+            services.AddSingletonAs<RolePermissionsProvider>()
+                .AsSelf();
 
             services.AddSingletonAs<EdmModelBuilder>()
                 .AsSelf();
@@ -143,6 +161,9 @@ namespace Squidex.Config.Domain
             services.AddSingletonAs<EnrichWithSchemaIdCommandMiddleware>()
                 .As<ICommandMiddleware>();
 
+            services.AddSingletonAs<InviteUserCommandMiddleware>()
+                .As<ICommandMiddleware>();
+
             services.AddSingletonAs<AssetCommandMiddleware>()
                 .As<ICommandMiddleware>();
 
@@ -150,6 +171,9 @@ namespace Squidex.Config.Domain
                 .As<ICommandMiddleware>();
 
             services.AddSingletonAs<GrainCommandMiddleware<AppCommand, IAppGrain>>()
+                .As<ICommandMiddleware>();
+
+            services.AddSingletonAs<GrainCommandMiddleware<CommentsCommand, ICommentGrain>>()
                 .As<ICommandMiddleware>();
 
             services.AddSingletonAs<GrainCommandMiddleware<ContentCommand, IContentGrain>>()
@@ -173,6 +197,9 @@ namespace Squidex.Config.Domain
             services.AddSingletonAs<SingletonCommandMiddleware>()
                 .As<ICommandMiddleware>();
 
+            services.AddSingletonAs<AlwaysCreateClientCommandMiddleware>()
+                .As<ICommandMiddleware>();
+
             services.AddSingletonAs<CreateBlogCommandMiddleware>()
                 .As<ICommandMiddleware>();
 
@@ -180,6 +207,9 @@ namespace Squidex.Config.Domain
                 .As<ICommandMiddleware>();
 
             services.AddSingletonAs<CreateProfileCommandMiddleware>()
+                .As<ICommandMiddleware>();
+
+            services.AddSingletonAs<UsageTrackerCommandMiddleware>()
                 .As<ICommandMiddleware>();
         }
 
@@ -221,6 +251,9 @@ namespace Squidex.Config.Domain
             services.AddTransientAs<ConvertEventStoreAppId>()
                 .As<IMigration>();
 
+            services.AddTransientAs<ClearSchemas>()
+                .As<IMigration>();
+
             services.AddTransientAs<PopulateGrainIndexes>()
                 .As<IMigration>();
 
@@ -228,6 +261,9 @@ namespace Squidex.Config.Domain
                 .As<IMigration>();
 
             services.AddTransientAs<RebuildSnapshots>()
+                .As<IMigration>();
+
+            services.AddTransientAs<RebuildApps>()
                 .As<IMigration>();
 
             services.AddTransientAs<RebuildAssets>()

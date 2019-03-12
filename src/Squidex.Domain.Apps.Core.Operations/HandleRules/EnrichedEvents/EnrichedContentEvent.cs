@@ -12,7 +12,7 @@ using Squidex.Infrastructure;
 
 namespace Squidex.Domain.Apps.Core.HandleRules.EnrichedEvents
 {
-    public sealed class EnrichedContentEvent : EnrichedSchemaEvent
+    public sealed class EnrichedContentEvent : EnrichedSchemaEventBase, IEnrichedEntityEvent
     {
         public EnrichedContentEventType Type { get; set; }
 
@@ -30,9 +30,9 @@ namespace Squidex.Domain.Apps.Core.HandleRules.EnrichedEvents
 
         public Status Status { get; set; }
 
-        public override Guid AggregateId
+        public override long Partition
         {
-            get { return Id; }
+            get { return Id.GetHashCode(); }
         }
     }
 }

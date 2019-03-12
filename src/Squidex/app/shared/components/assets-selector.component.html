@@ -5,30 +5,54 @@
 
     <ng-container tabs>
         <div class="row no-gutters">
-            <div class="col col-auto offset-lg-4">
-                <button class="btn btn-link btn-secondary" (click)="reload()">
+            <div class="col-auto offset-lg-2">
+                <button type="button" class="btn btn-text-secondary" (click)="reload()">
                     <i class="icon-reset"></i> Refresh
                 </button>
             </div>
-            <div class="col pl-1">
-                <sqx-search-form formClass="form" placeholder="Search for assets" fieldExample="fileSize"
-                    [query]="state.assetsQuery | async" 
-                    (queryChanged)="search($event)">
-                </sqx-search-form>
+            <div class="col pl-1" style="width: 300px">
+                <div class="row no-gutters search">
+                    <div class="col-6">
+                        <sqx-tag-editor class="tags" singleLine="true" placeholder="Search by tags"
+                            [suggestions]="assetsState.tagsNames | async"
+                            [ngModel]="assetsState.selectedTagNames | async"
+                            (ngModelChange)="selectTags($event)"
+                            [undefinedWhenEmpty]="false">
+                        </sqx-tag-editor>
+                    </div>
+                    <div class="col-6">
+                        <sqx-search-form formClass="form" placeholder="Search by asset name" fieldExample="fileSize"
+                            (queryChanged)="search($event)" 
+                            [query]="assetsState.assetsQuery | async"
+                            enableShortcut="true">
+                        </sqx-search-form>
+                    </div>
+                </div>
+            </div>
+            <div class="col-auto pl-1">
+                <div class="btn-group" data-toggle="buttons">
+                    <button type="button" class="btn btn-secondary btn-toggle" [class.btn-primary]="snapshot.isListView" [disabled]="snapshot.isListView" (click)="changeView(true)">
+                        <i class="icon-list"></i>
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-toggle" [class.btn-primary]="!snapshot.isListView" [disabled]="!snapshot.isListView" (click)="changeView(false)">
+                        <i class="icon-grid"></i>
+                    </button>
+                </div>
             </div>
         </div>
     </ng-container>
 
     <ng-container content>
         <sqx-assets-list
+            [isListView]="snapshot.isListView"
             (selected)="selectAsset($event)"
-            [selectedIds]="selectedAssets"
-            [state]="state" isDisabled="true">
+            [selectedIds]="snapshot.selectedAssets"
+            [state]="assetsState" isDisabled="true">
         </sqx-assets-list>
     </ng-container>
 
     <ng-container footer>
         <button type="reset" class="float-left btn btn-secondary" (click)="complete()">Cancel</button>
-        <button type="submit" class="float-right btn btn-success" (click)="select()" [disabled]="selectionCount === 0">Link selected assets ({{selectionCount}})</button>
+        <button type="submit" class="float-right btn btn-success" (click)="select()" [disabled]="snapshot.selectionCount === 0">Link selected assets ({{snapshot.selectionCount}})</button>
     </ng-container>
 </sqx-modal-dialog>

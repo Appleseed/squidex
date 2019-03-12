@@ -19,8 +19,14 @@ namespace Squidex.Domain.Apps.Entities.Apps
         public AppHistoryEventsCreator(TypeNameRegistry typeNameRegistry)
             : base(typeNameRegistry)
         {
+            AddEventMessage("AppContributorAssignedEvent",
+                "assigned {user:[Contributor]} as {[Role]}");
+
+            AddEventMessage("AppClientUpdatedEvent",
+                "updated client {[Id]}");
+
             AddEventMessage<AppContributorAssigned>(
-                "assigned {user:[Contributor]} as {[Permission]}");
+                "assigned {user:[Contributor]} as {[Role]}");
 
             AddEventMessage<AppContributorRemoved>(
                 "removed {user:[Contributor]} from app");
@@ -36,6 +42,9 @@ namespace Squidex.Domain.Apps.Entities.Apps
 
             AddEventMessage<AppClientRenamed>(
                 "renamed client {[Id]} to {[Name]}");
+
+            AddEventMessage<AppPlanChanged>(
+                "changed plan to {[Plan]}");
 
             AddEventMessage<AppLanguageAdded>(
                 "added language {[Language]}");
@@ -57,9 +66,18 @@ namespace Squidex.Domain.Apps.Entities.Apps
 
             AddEventMessage<AppPatternUpdated>(
                 "updated pattern {[Name]}");
+
+            AddEventMessage<AppRoleAdded>(
+                "added role {[Name]}");
+
+            AddEventMessage<AppRoleDeleted>(
+                "deleted role {[Name]}");
+
+            AddEventMessage<AppRoleUpdated>(
+                "updated role {[Name]}");
         }
 
-        protected Task<HistoryEventToStore> On(AppContributorRemoved @event)
+        protected Task<HistoryEvent> On(AppContributorRemoved @event)
         {
             const string channel = "settings.contributors";
 
@@ -68,16 +86,16 @@ namespace Squidex.Domain.Apps.Entities.Apps
                     .AddParameter("Contributor", @event.ContributorId));
         }
 
-        protected Task<HistoryEventToStore> On(AppContributorAssigned @event)
+        protected Task<HistoryEvent> On(AppContributorAssigned @event)
         {
             const string channel = "settings.contributors";
 
             return Task.FromResult(
                 ForEvent(@event, channel)
-                    .AddParameter("Contributor", @event.ContributorId).AddParameter("Permission", @event.Permission));
+                    .AddParameter("Contributor", @event.ContributorId).AddParameter("Role", @event.Role));
         }
 
-        protected Task<HistoryEventToStore> On(AppClientAttached @event)
+        protected Task<HistoryEvent> On(AppClientAttached @event)
         {
             const string channel = "settings.clients";
 
@@ -86,7 +104,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
                     .AddParameter("Id", @event.Id));
         }
 
-        protected Task<HistoryEventToStore> On(AppClientRevoked @event)
+        protected Task<HistoryEvent> On(AppClientRevoked @event)
         {
             const string channel = "settings.clients";
 
@@ -95,7 +113,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
                     .AddParameter("Id", @event.Id));
         }
 
-        protected Task<HistoryEventToStore> On(AppClientRenamed @event)
+        protected Task<HistoryEvent> On(AppClientRenamed @event)
         {
             const string channel = "settings.clients";
 
@@ -104,7 +122,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
                     .AddParameter("Id", @event.Id).AddParameter("Name", ClientName(@event)));
         }
 
-        protected Task<HistoryEventToStore> On(AppLanguageAdded @event)
+        protected Task<HistoryEvent> On(AppLanguageAdded @event)
         {
             const string channel = "settings.languages";
 
@@ -113,7 +131,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
                     .AddParameter("Language", @event.Language));
         }
 
-        protected Task<HistoryEventToStore> On(AppLanguageRemoved @event)
+        protected Task<HistoryEvent> On(AppLanguageRemoved @event)
         {
             const string channel = "settings.languages";
 
@@ -122,7 +140,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
                     .AddParameter("Language", @event.Language));
         }
 
-        protected Task<HistoryEventToStore> On(AppLanguageUpdated @event)
+        protected Task<HistoryEvent> On(AppLanguageUpdated @event)
         {
             const string channel = "settings.languages";
 
@@ -131,7 +149,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
                     .AddParameter("Language", @event.Language));
         }
 
-        protected Task<HistoryEventToStore> On(AppMasterLanguageSet @event)
+        protected Task<HistoryEvent> On(AppMasterLanguageSet @event)
         {
             const string channel = "settings.languages";
 
@@ -140,7 +158,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
                     .AddParameter("Language", @event.Language));
         }
 
-        protected Task<HistoryEventToStore> On(AppPatternAdded @event)
+        protected Task<HistoryEvent> On(AppPatternAdded @event)
         {
             const string channel = "settings.patterns";
 
@@ -149,7 +167,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
                     .AddParameter("Name", @event.Name));
         }
 
-        protected Task<HistoryEventToStore> On(AppPatternUpdated @event)
+        protected Task<HistoryEvent> On(AppPatternUpdated @event)
         {
             const string channel = "settings.patterns";
 
@@ -158,7 +176,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
                     .AddParameter("Name", @event.Name));
         }
 
-        protected Task<HistoryEventToStore> On(AppPatternDeleted @event)
+        protected Task<HistoryEvent> On(AppPatternDeleted @event)
         {
             const string channel = "settings.patterns";
 
@@ -167,9 +185,45 @@ namespace Squidex.Domain.Apps.Entities.Apps
                     .AddParameter("PatternId", @event.PatternId));
         }
 
-        protected override Task<HistoryEventToStore> CreateEventCoreAsync(Envelope<IEvent> @event)
+        protected Task<HistoryEvent> On(AppRoleAdded @event)
         {
-            return this.DispatchFuncAsync(@event.Payload, (HistoryEventToStore)null);
+            const string channel = "settings.roles";
+
+            return Task.FromResult(
+                ForEvent(@event, channel)
+                    .AddParameter("Name", @event.Name));
+        }
+
+        protected Task<HistoryEvent> On(AppRoleUpdated @event)
+        {
+            const string channel = "settings.roles";
+
+            return Task.FromResult(
+                ForEvent(@event, channel)
+                    .AddParameter("Name", @event.Name));
+        }
+
+        protected Task<HistoryEvent> On(AppPlanChanged @event)
+        {
+            const string channel = "settings.plan";
+
+            return Task.FromResult(
+                ForEvent(@event, channel)
+                    .AddParameter("Plan", @event.PlanId));
+        }
+
+        protected Task<HistoryEvent> On(AppRoleDeleted @event)
+        {
+            const string channel = "settings.roles";
+
+            return Task.FromResult(
+                ForEvent(@event, channel)
+                    .AddParameter("Name", @event.Name));
+        }
+
+        protected override Task<HistoryEvent> CreateEventCoreAsync(Envelope<IEvent> @event)
+        {
+            return this.DispatchFuncAsync(@event.Payload, (HistoryEvent)null);
         }
 
         private static string ClientName(AppClientRenamed @event)

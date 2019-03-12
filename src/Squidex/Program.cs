@@ -9,8 +9,6 @@ using System.IO;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using Orleans;
-using Orleans.Hosting;
 using Squidex.Config;
 using Squidex.Infrastructure.Log.Adapter;
 
@@ -27,7 +25,7 @@ namespace Squidex
             new WebHostBuilder()
                 .UseKestrel(k => { k.AddServerHeader = false; })
                 .UseContentRoot(Directory.GetCurrentDirectory())
-                .UseIISIntegration()
+                .UseIIS()
                 .UseStartup<WebStartup>()
                 .ConfigureLogging((hostingContext, builder) =>
                 {
@@ -39,7 +37,7 @@ namespace Squidex
                 {
                     builder.Sources.Clear();
 
-                    builder.AddJsonFile("appsettings.json", true, true);
+                    builder.AddJsonFile($"appsettings.json", true, true);
                     builder.AddJsonFile($"appsettings.{hostContext.HostingEnvironment.EnvironmentName}.json", true);
 
                     builder.AddEnvironmentVariables();

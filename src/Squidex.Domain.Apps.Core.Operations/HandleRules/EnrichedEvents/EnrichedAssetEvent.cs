@@ -11,7 +11,7 @@ using Squidex.Infrastructure;
 
 namespace Squidex.Domain.Apps.Core.HandleRules.EnrichedEvents
 {
-    public sealed class EnrichedAssetEvent : EnrichedEvent
+    public sealed class EnrichedAssetEvent : EnrichedUserEventBase, IEnrichedEntityEvent
     {
         public EnrichedAssetEventType Type { get; set; }
 
@@ -39,9 +39,9 @@ namespace Squidex.Domain.Apps.Core.HandleRules.EnrichedEvents
 
         public int? PixelHeight { get; set; }
 
-        public override Guid AggregateId
+        public override long Partition
         {
-            get { return Id; }
+            get { return Id.GetHashCode(); }
         }
     }
 }

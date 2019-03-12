@@ -82,7 +82,9 @@ export class SearchFormComponent implements OnChanges, OnInit {
     }
 
     public ngOnInit() {
-        this.saveKey = this.queries.getSaveKey(this.contentsFilter.valueChanges);
+        if (this.queries) {
+            this.saveKey = this.queries.getSaveKey(this.contentsFilter.valueChanges);
+        }
     }
 
     public ngOnChanges() {
@@ -90,6 +92,7 @@ export class SearchFormComponent implements OnChanges, OnInit {
     }
 
     public saveQuery() {
+        this.saveQueryForm.submitCompleted({});
         this.saveQueryDialog.show();
     }
 
@@ -97,7 +100,9 @@ export class SearchFormComponent implements OnChanges, OnInit {
         const value = this.saveQueryForm.submit();
 
         if (value) {
-            this.queries.add(value.name, this.contentsFilter.value);
+            if (this.queries) {
+                this.queries.add(value.name, this.contentsFilter.value);
+            }
 
             this.saveQueryForm.submitCompleted();
         }

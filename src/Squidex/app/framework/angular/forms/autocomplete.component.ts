@@ -5,10 +5,12 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { Component, ContentChild, forwardRef, Input, OnDestroy, OnInit, TemplateRef } from '@angular/core';
-import { ControlValueAccessor, FormControl, NG_VALUE_ACCESSOR } from '@angular/forms';
-import { Observable, of, Subscription } from 'rxjs';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ContentChild, ElementRef, forwardRef, Input, OnInit, TemplateRef, ViewChild } from '@angular/core';
+import { FormControl, NG_VALUE_ACCESSOR } from '@angular/forms';
+import { Observable, of } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, filter, map, switchMap, tap } from 'rxjs/operators';
+
+import { StatefulControlComponent } from '@app/framework/internal';
 
 export interface AutocompleteSource {
     find(query: string): Observable<any[]>;
@@ -23,17 +25,19 @@ export const SQX_AUTOCOMPLETE_CONTROL_VALUE_ACCESSOR: any = {
     provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => AutocompleteComponent), multi: true
 };
 
+interface State {
+    suggestedItems: any[];
+    suggestedIndex: number;
+}
+
 @Component({
     selector: 'sqx-autocomplete',
     styleUrls: ['./autocomplete.component.scss'],
     templateUrl: './autocomplete.component.html',
-    providers: [SQX_AUTOCOMPLETE_CONTROL_VALUE_ACCESSOR]
+    providers: [SQX_AUTOCOMPLETE_CONTROL_VALUE_ACCESSOR],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class AutocompleteComponent implements ControlValueAccessor, OnDestroy, OnInit {
-    private subscription: Subscription;
-    private callChange = (v: any) => { /* NOOP */ };
-    private callTouched = () => { /* NOOP */ };
-
+export class AutocompleteComponent extends StatefulControlComponent<State, any[]> implements OnInit {
     @Input()
     public source: AutocompleteSource;
 
@@ -49,17 +53,20 @@ export class AutocompleteComponent implements ControlValueAccessor, OnDestroy, O
     @ContentChild(TemplateRef)
     public itemTemplate: TemplateRef<any>;
 
-    public suggestedItems: any[] = [];
-    public suggestedIndex = -1;
+    @ViewChild('input')
+    public inputControl: ElementRef<HTMLInputElement>;
 
     public queryInput = new FormControl();
 
-    public ngOnDestroy() {
-        this.subscription.unsubscribe();
+    constructor(changeDetector: ChangeDetectorRef) {
+        super(changeDetector, {
+            suggestedItems: [],
+            suggestedIndex: -1
+        });
     }
 
     public ngOnInit() {
-        this.subscription =
+        this.own(
             this.queryInput.valueChanges.pipe(
                     tap(query => {
                         this.callChange(query);
@@ -76,9 +83,12 @@ export class AutocompleteComponent implements ControlValueAccessor, OnDestroy, O
                     filter(query => !!query && !!this.source),
                     switchMap(query => this.source.find(query)), catchError(() => of([])))
                 .subscribe(items => {
-                    this.suggestedIndex = -1;
-                    this.suggestedItems = items || [];
-                });
+                    this.next(s => ({
+                        ...s,
+                        suggestedIndex: -1,
+                        suggestedItems: items || []
+                    }));
+                }));
     }
 
     public onKeyDown(event: KeyboardEvent) {
@@ -94,8 +104,7 @@ export class AutocompleteComponent implements ControlValueAccessor, OnDestroy, O
                 this.reset();
                 return false;
             case KEY_ENTER:
-                if (this.suggestedItems.length > 0) {
-                    this.selectItem();
+                if (this.snapshot.suggestedItems.length > 0 && this.selectItem()) {
                     return false;
                 }
                 break;
@@ -108,10 +117,10 @@ export class AutocompleteComponent implements ControlValueAccessor, OnDestroy, O
         if (!obj) {
             this.resetForm();
         } else {
-            const item = this.suggestedItems.find(i => i === obj);
-
-            if (item) {
-                this.queryInput.setValue(obj.title || '');
+            if (this.displayProperty && this.displayProperty.length > 0) {
+                this.queryInput.setValue(obj[this.displayProperty]);
+            } else {
+                this.queryInput.setValue(obj.toString());
             }
         }
 
@@ -135,18 +144,22 @@ export class AutocompleteComponent implements ControlValueAccessor, OnDestroy, O
         this.callTouched = fn;
     }
 
+    public focus() {
+        this.inputControl.nativeElement.focus();
+    }
+
     public blur() {
         this.reset();
         this.callTouched();
     }
 
-    public selectItem(selection: any | null = null) {
+    public selectItem(selection: any | null = null): boolean {
         if (!selection) {
-            selection = this.suggestedItems[this.suggestedIndex];
+            selection = this.snapshot.suggestedItems[this.snapshot.suggestedIndex];
         }
 
-        if (!selection && this.suggestedItems.length === 1) {
-            selection = this.suggestedItems[0];
+        if (!selection && this.snapshot.suggestedItems.length === 1) {
+            selection = this.snapshot.suggestedItems[0];
         }
 
         if (selection) {
@@ -160,27 +173,31 @@ export class AutocompleteComponent implements ControlValueAccessor, OnDestroy, O
             } finally {
                 this.reset();
             }
+
+            return true;
         }
+
+        return false;
     }
 
-    public selectIndex(selection: number) {
-        if (selection < 0) {
-            selection = 0;
+    public selectIndex(suggestedIndex: number) {
+        if (suggestedIndex < 0) {
+            suggestedIndex = 0;
         }
 
-        if (selection >= this.suggestedItems.length) {
-            selection = this.suggestedItems.length - 1;
+        if (suggestedIndex >= this.snapshot.suggestedItems.length) {
+            suggestedIndex = this.snapshot.suggestedItems.length - 1;
         }
 
-        this.suggestedIndex = selection;
+        this.next(s => ({ ...s, suggestedIndex }));
     }
 
     private up() {
-        this.selectIndex(this.suggestedIndex - 1);
+        this.selectIndex(this.snapshot.suggestedIndex - 1);
     }
 
     private down() {
-        this.selectIndex(this.suggestedIndex + 1);
+        this.selectIndex(this.snapshot.suggestedIndex + 1);
     }
 
     private resetForm() {
@@ -188,7 +205,10 @@ export class AutocompleteComponent implements ControlValueAccessor, OnDestroy, O
     }
 
     private reset() {
-        this.suggestedItems = [];
-        this.suggestedIndex = -1;
+        this.next(s => ({
+            ...s,
+            suggestedItems: [],
+            suggestedIndex: -1
+        }));
     }
 }

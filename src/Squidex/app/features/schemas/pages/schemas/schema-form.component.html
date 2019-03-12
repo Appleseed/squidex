@@ -18,24 +18,27 @@
                 <sqx-control-errors for="name" submitOnly="true" [submitted]="createForm.submitted | async"></sqx-control-errors>
         
                 <input type="text" class="form-control" id="schemaName" formControlName="name" autocomplete="off" sqxTransformInput="LowerCase" sqxFocusOnInit />
+
+                <small class="form-text text-muted">
+                    You can only use letters, numbers and dashes and not more than 40 characters. The name cannot be changed later.
+                </small>
                 
                 <small class="form-text text-muted">
-                    The schema name becomes part of the api url,<br /> e.g {{apiUrl.buildUrl("api/content/")}}{{appsState.appName}}/<b>{{createForm.schemaName | async}}</b>/.
+                    The schema name becomes part of the api url:
                 </small>
-                <small class="form-text text-muted">
-                    It must contain lower case letters (a-z), numbers and dashes only, and cannot be longer than 40 characters. The name cannot be changed later.
-                </small>
+
+                <sqx-code>{{apiUrl.buildUrl("api/content/")}}{{appsState.appName}}/{{createForm.schemaName | async}}</sqx-code>
             </div>
 
             <div class="form-group">
                 <div class="row no-gutters">
                     <div class="col-6 type">
                         <label>
-                            <input type="radio" class="radio-input" formControlName="singleton" [value]="false" />
+                            <input type="radio" class="radio-input" formControlName="isSingleton" [value]="false" />
                         
                             <div class="row no-gutters">
-                                <div class="col col-auto">
-                                    <div class="type-icon" [class.active]="createForm.form.controls['singleton'].value !== true">
+                                <div class="col-auto">
+                                    <div class="type-icon" [class.active]="createForm.form.controls['isSingleton'].value !== true">
                                         <i class="icon-multiple-content"></i>
                                     </div>
                                 </div>
@@ -49,11 +52,11 @@
                     </div>
                     <div class="col-6 type">
                         <label>
-                            <input type="radio" class="radio-input" formControlName="singleton" [value]="true" />
+                            <input type="radio" class="radio-input" formControlName="isSingleton" [value]="true" />
                         
                             <div class="row no-gutters">
-                                <div class="col col-auto">
-                                    <div class="type-icon" [class.active]="createForm.form.controls['singleton'].value === true">
+                                <div class="col-auto">
+                                    <div class="type-icon" [class.active]="createForm.form.controls['isSingleton'].value === true">
                                         <i class="icon-single-content"></i>
                                     </div>
                                 </div>
@@ -68,12 +71,12 @@
             </div>
 
             <div class="form-group">
-                <a class="btn btn-sm btn-link force" (click)="toggleImport()" [class.hidden]="showImport">
+                <button type="button" class="btn btn-sm btn-text" (click)="toggleImport()" [class.hidden]="showImport">
                     Import schema
-                </a>
-                <a class="btn btn-sm btn-link force" (click)="toggleImport()" [class.hidden]="!showImport">
+                </button>
+                <button type="button" class="btn btn-sm btn-text force" (click)="toggleImport()" [class.hidden]="!showImport">
                     Hide
-                </a>
+                </button>
         
                 <sqx-json-editor *ngIf="showImport" formControlName="import"></sqx-json-editor>
             </div>

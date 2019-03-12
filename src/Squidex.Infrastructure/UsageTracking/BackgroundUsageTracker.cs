@@ -19,18 +19,22 @@ namespace Squidex.Infrastructure.UsageTracking
 {
     public sealed class BackgroundUsageTracker : DisposableObjectBase, IUsageTracker
     {
+        public const string CounterTotalCalls = "TotalCalls";
+        public const string CounterTotalElapsedMs = "TotalElapsedMs";
+
+        private const string FallbackCategory = "*";
         private const int Intervall = 60 * 1000;
-        private readonly IUsageStore usageStore;
+        private readonly IUsageRepository usageRepository;
         private readonly ISemanticLog log;
         private readonly CompletionTimer timer;
-        private ConcurrentDictionary<string, Usage> usages = new ConcurrentDictionary<string, Usage>();
+        private ConcurrentDictionary<(string Key, string Category), Usage> usages = new ConcurrentDictionary<(string Key, string Category), Usage>();
 
-        public BackgroundUsageTracker(IUsageStore usageStore, ISemanticLog log)
+        public BackgroundUsageTracker(IUsageRepository usageRepository, ISemanticLog log)
         {
-            Guard.NotNull(usageStore, nameof(usageStore));
+            Guard.NotNull(usageRepository, nameof(usageRepository));
             Guard.NotNull(log, nameof(log));
 
-            this.usageStore = usageStore;
+            this.usageRepository = usageRepository;
 
             this.log = log;
 
@@ -58,14 +62,31 @@ namespace Squidex.Infrastructure.UsageTracking
             {
                 var today = DateTime.Today;
 
-                var localUsages = Interlocked.Exchange(ref usages, new ConcurrentDictionary<string, Usage>());
+                var localUsages = Interlocked.Exchange(ref usages, new ConcurrentDictionary<(string Key, string Category), Usage>());
 
-                await Task.WhenAll(localUsages.Select(x =>
-                    usageStore.TrackUsagesAsync(
-                        today,
-                        x.Key,
-                        x.Value.Count,
-                        x.Value.ElapsedMs)));
+                if (localUsages.Count > 0)
+                {
+                    var updates = new UsageUpdate[localUsages.Count];
+                    var updateIndex = 0;
+
+                    foreach (var kvp in localUsages)
+                    {
+                        var counters = new Counters
+                        {
+                            [CounterTotalCalls] = kvp.Value.Count,
+                            [CounterTotalElapsedMs] = kvp.Value.ElapsedMs
+                        };
+
+                        updates[updateIndex].Key = kvp.Key.Key;
+                        updates[updateIndex].Category = kvp.Key.Category;
+                        updates[updateIndex].Counters = counters;
+                        updates[updateIndex].Date = today;
+
+                        updateIndex++;
+                    }
+
+                    await usageRepository.TrackUsagesAsync(updates);
+                }
             }
             catch (Exception ex)
             {
@@ -75,51 +96,103 @@ namespace Squidex.Infrastructure.UsageTracking
             }
         }
 
-        public Task TrackAsync(string key, double weight, double elapsedMs)
+        public Task TrackAsync(string key, string category, double weight, double elapsedMs)
         {
-            Guard.NotNull(key, nameof(key));
+            key = GetKey(key);
 
             ThrowIfDisposed();
 
             if (weight > 0)
             {
-                usages.AddOrUpdate(key, _ => new Usage(elapsedMs, weight), (k, x) => x.Add(elapsedMs, weight));
+                category = GetCategory(category);
+
+                usages.AddOrUpdate((key, category), _ => new Usage(elapsedMs, weight), (k, x) => x.Add(elapsedMs, weight));
             }
 
             return TaskHelper.Done;
         }
 
-        public async Task<IReadOnlyList<StoredUsage>> QueryAsync(string key, DateTime fromDate, DateTime toDate)
+        public async Task<IReadOnlyDictionary<string, IReadOnlyList<DateUsage>>> QueryAsync(string key, DateTime fromDate, DateTime toDate)
         {
-            Guard.NotNull(key, nameof(key));
+            key = GetKey(key);
 
             ThrowIfDisposed();
 
-            var originalUsages = await usageStore.QueryAsync(key, fromDate, toDate);
-            var enrichedUsages = new List<StoredUsage>();
+            var usagesFlat = await usageRepository.QueryAsync(key, fromDate, toDate);
+            var usagesByCategory = usagesFlat.GroupBy(x => GetCategory(x.Category)).ToDictionary(x => x.Key, x => x.ToList());
 
-            var usagesDictionary = originalUsages.ToDictionary(x => x.Date);
+            var result = new Dictionary<string, IReadOnlyList<DateUsage>>();
 
-            for (var date = fromDate; date <= toDate; date = date.AddDays(1))
+            IEnumerable<string> categories = usagesByCategory.Keys;
+
+            if (usagesByCategory.Count == 0)
             {
-                enrichedUsages.Add(usagesDictionary.GetOrDefault(date) ?? new StoredUsage(date, 0, 0));
+                var enriched = new List<DateUsage>();
+
+                for (var date = fromDate; date <= toDate; date = date.AddDays(1))
+                {
+                    enriched.Add(new DateUsage(date, 0, 0));
+                }
+
+                result[FallbackCategory] = enriched;
+            }
+            else
+            {
+                foreach (var category in categories)
+                {
+                    var enriched = new List<DateUsage>();
+
+                    var usagesDictionary = usagesByCategory[category].ToDictionary(x => x.Date);
+
+                    for (var date = fromDate; date <= toDate; date = date.AddDays(1))
+                    {
+                        var stored = usagesDictionary.GetOrDefault(date);
+
+                        var totalCount = 0L;
+                        var totalElapsedMs = 0L;
+
+                        if (stored != null)
+                        {
+                            totalCount = (long)stored.Counters.Get(CounterTotalCalls);
+                            totalElapsedMs = (long)stored.Counters.Get(CounterTotalElapsedMs);
+                        }
+
+                        enriched.Add(new DateUsage(date, totalCount, totalElapsedMs));
+                    }
+
+                    result[category] = enriched;
+                }
             }
 
-            return enrichedUsages;
+            return result;
         }
 
-        public async Task<long> GetMonthlyCallsAsync(string key, DateTime date)
+        public Task<long> GetMonthlyCallsAsync(string key, DateTime date)
         {
-            Guard.NotNull(key, nameof(key));
+            return GetPreviousCallsAsync(key, new DateTime(date.Year, date.Month, 1), date);
+        }
+
+        public async Task<long> GetPreviousCallsAsync(string key, DateTime fromDate, DateTime toDate)
+        {
+            key = GetKey(key);
 
             ThrowIfDisposed();
 
-            var dateFrom = new DateTime(date.Year, date.Month, 1);
-            var dateTo = dateFrom.AddMonths(1).AddDays(-1);
+            var originalUsages = await usageRepository.QueryAsync(key, fromDate, toDate);
 
-            var originalUsages = await usageStore.QueryAsync(key, dateFrom, dateTo);
+            return originalUsages.Sum(x => (long)x.Counters.Get(CounterTotalCalls));
+        }
 
-            return originalUsages.Sum(x => x.TotalCount);
+        private static string GetCategory(string category)
+        {
+            return !string.IsNullOrWhiteSpace(category) ? category.Trim() : "*";
+        }
+
+        private static string GetKey(string key)
+        {
+            Guard.NotNull(key, nameof(key));
+
+            return $"{key}_API";
         }
     }
 }

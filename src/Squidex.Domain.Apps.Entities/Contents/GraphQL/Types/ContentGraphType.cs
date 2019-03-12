@@ -42,7 +42,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL.Types
             {
                 Name = "created",
                 ResolvedType = AllTypes.NonNullDate,
-                Resolver = Resolve(x => x.Created.ToDateTimeUtc()),
+                Resolver = Resolve(x => x.Created),
                 Description = $"The date and time when the {schemaName} content has been created."
             });
 
@@ -58,7 +58,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL.Types
             {
                 Name = "lastModified",
                 ResolvedType = AllTypes.NonNullDate,
-                Resolver = Resolve(x => x.LastModified.ToDateTimeUtc()),
+                Resolver = Resolve(x => x.LastModified),
                 Description = $"The date and time when the {schemaName} content has been modified last."
             });
 
@@ -94,6 +94,14 @@ namespace Squidex.Domain.Apps.Entities.Contents.GraphQL.Types
                     ResolvedType = new NonNullGraphType(contentDataType),
                     Resolver = Resolve(x => x.Data),
                     Description = $"The data of the {schemaName} content."
+                });
+
+                AddField(new FieldType
+                {
+                    Name = "dataDraft",
+                    ResolvedType = contentDataType,
+                    Resolver = Resolve(x => x.DataDraft),
+                    Description = $"The draft data of the {schemaName} content."
                 });
             }
 

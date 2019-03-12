@@ -11,7 +11,7 @@ namespace Squidex.Infrastructure.Caching
 {
     public class LRUCacheTests
     {
-        private readonly LRUCache sut = new LRUCache(10);
+        private readonly LRUCache<string, int> sut = new LRUCache<string, int>(10);
         private readonly string key = "Key";
 
         [Fact]
@@ -29,18 +29,18 @@ namespace Squidex.Infrastructure.Caching
         [Fact]
         public void Should_remove_old_items_when_capacity_reached()
         {
-            for (int i = 0; i < 15; i++)
+            for (var i = 0; i < 15; i++)
             {
                 sut.Set(i.ToString(), i);
             }
 
-            for (int i = 0; i < 5; i++)
+            for (var i = 0; i < 5; i++)
             {
                 Assert.False(sut.TryGetValue(i.ToString(), out var value));
                 Assert.Null(value);
             }
 
-            for (int i = 5; i < 15; i++)
+            for (var i = 5; i < 15; i++)
             {
                 Assert.True(sut.TryGetValue(i.ToString(), out var value));
                 Assert.NotNull(value);

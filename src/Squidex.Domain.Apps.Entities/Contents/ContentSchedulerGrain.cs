@@ -83,10 +83,10 @@ namespace Squidex.Domain.Apps.Entities.Contents
                     }
                     catch (Exception ex)
                     {
-                        log.LogError(ex, w => w
+                        log.LogError(ex, content.Id.ToString(), (logContentId, w) => w
                             .WriteProperty("action", "ChangeStatusScheduled")
                             .WriteProperty("status", "Failed")
-                            .WriteProperty("contentId", content.Id.ToString()));
+                            .WriteProperty("contentId", logContentId));
                     }
                 });
             });
@@ -99,7 +99,7 @@ namespace Squidex.Domain.Apps.Entities.Contents
 
         private Task Dispatch(Func<Task> task)
         {
-            return Task<Task>.Factory.StartNew(() => task(), CancellationToken.None, TaskCreationOptions.None, scheduler ?? TaskScheduler.Default).Unwrap();
+            return Task<Task>.Factory.StartNew(task, CancellationToken.None, TaskCreationOptions.None, scheduler ?? TaskScheduler.Default).Unwrap();
         }
     }
 }

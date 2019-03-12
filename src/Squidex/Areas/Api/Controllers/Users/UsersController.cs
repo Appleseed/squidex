@@ -12,7 +12,6 @@ using System.Net.Http;
 using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using NSwag.Annotations;
 using Squidex.Areas.Api.Controllers.Users.Models;
 using Squidex.Domain.Users;
 using Squidex.Infrastructure.Commands;
@@ -25,8 +24,7 @@ namespace Squidex.Areas.Api.Controllers.Users
     /// <summary>
     /// Readonly API to retrieve information about squidex users.
     /// </summary>
-    [ApiExceptionFilter]
-    [SwaggerTag(nameof(Users))]
+    [ApiExplorerSettings(GroupName = nameof(Users))]
     public sealed class UsersController : ApiController
     {
         private static readonly byte[] AvatarBytes;
@@ -69,10 +67,10 @@ namespace Squidex.Areas.Api.Controllers.Users
         /// <returns>
         /// 200 => Users returned.
         /// </returns>
-        [ApiAuthorize]
         [HttpGet]
         [Route("users/")]
         [ProducesResponseType(typeof(PublicUserDto[]), 200)]
+        [ApiPermission]
         public async Task<IActionResult> GetUsers(string query)
         {
             try
@@ -101,10 +99,10 @@ namespace Squidex.Areas.Api.Controllers.Users
         /// 200 => User found.
         /// 404 => User not found.
         /// </returns>
-        [ApiAuthorize]
         [HttpGet]
         [Route("users/{id}/")]
         [ProducesResponseType(typeof(PublicUserDto), 200)]
+        [ApiPermission]
         public async Task<IActionResult> GetUser(string id)
         {
             try
@@ -138,7 +136,7 @@ namespace Squidex.Areas.Api.Controllers.Users
         /// </returns>
         [HttpGet]
         [Route("users/{id}/picture/")]
-        [ProducesResponseType(200)]
+        [ProducesResponseType(typeof(FileResult), 200)]
         [ResponseCache(Duration = 3600)]
         public async Task<IActionResult> GetUserPicture(string id)
         {

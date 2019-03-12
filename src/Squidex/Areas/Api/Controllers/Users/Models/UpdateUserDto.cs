@@ -6,6 +6,8 @@
 // ==========================================================================
 
 using System.ComponentModel.DataAnnotations;
+using Squidex.Domain.Users;
+using Squidex.Infrastructure.Security;
 
 namespace Squidex.Areas.Api.Controllers.Users.Models
 {
@@ -28,5 +30,16 @@ namespace Squidex.Areas.Api.Controllers.Users.Models
         /// The password of the user.
         /// </summary>
         public string Password { get; set; }
+
+        /// <summary>
+        /// Additional permissions for the user.
+        /// </summary>
+        [Required]
+        public string[] Permissions { get; set; }
+
+        public UserValues ToValues()
+        {
+            return new UserValues { Email = Email, DisplayName = DisplayName, Password = Password, Permissions = new PermissionSet(Permissions) };
+        }
     }
 }

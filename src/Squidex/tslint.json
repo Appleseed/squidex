@@ -87,9 +87,8 @@
     "ordered-imports": [
       true
     ],
-    "pipe-naming": [
+    "pipe-prefix": [
       true,
-      "camelCase",
       "sqx"
     ],
     "prefer-for-of": true,
@@ -99,8 +98,6 @@
     ],
     "radix": true,
     "rxjs-collapse-imports": true,
-    "rxjs-pipeable-operators-only": true,
-    "rxjs-no-static-observable-methods": true,
     "rxjs-proper-imports": true,
     "semicolon": [
       true,

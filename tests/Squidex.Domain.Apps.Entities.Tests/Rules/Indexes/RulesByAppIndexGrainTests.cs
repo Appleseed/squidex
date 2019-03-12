@@ -17,18 +17,19 @@ namespace Squidex.Domain.Apps.Entities.Rules.Indexes
     public class RulesByAppIndexGrainTests
     {
         private readonly IStore<Guid> store = A.Fake<IStore<Guid>>();
-        private readonly IPersistence<RulesByAppIndexGrain.State> persistence = A.Fake<IPersistence<RulesByAppIndexGrain.State>>();
+        private readonly IPersistence<RulesByAppIndexGrain.GrainState> persistence = A.Fake<IPersistence<RulesByAppIndexGrain.GrainState>>();
+        private readonly Guid appId = Guid.NewGuid();
         private readonly Guid ruleId1 = Guid.NewGuid();
         private readonly Guid ruleId2 = Guid.NewGuid();
         private readonly RulesByAppIndexGrain sut;
 
         public RulesByAppIndexGrainTests()
         {
-            A.CallTo(() => store.WithSnapshots(A<Type>.Ignored, A<Guid>.Ignored, A<Func<RulesByAppIndexGrain.State, Task>>.Ignored))
+            A.CallTo(() => store.WithSnapshots(typeof(RulesByAppIndexGrain), appId, A<HandleSnapshot<RulesByAppIndexGrain.GrainState>>.Ignored))
                 .Returns(persistence);
 
             sut = new RulesByAppIndexGrain(store);
-            sut.OnActivateAsync(Guid.NewGuid()).Wait();
+            sut.ActivateAsync(appId).Wait();
         }
 
         [Fact]
@@ -41,7 +42,7 @@ namespace Squidex.Domain.Apps.Entities.Rules.Indexes
 
             Assert.Equal(new List<Guid> { ruleId1, ruleId2 }, result);
 
-            A.CallTo(() => persistence.WriteSnapshotAsync(A<RulesByAppIndexGrain.State>.Ignored))
+            A.CallTo(() => persistence.WriteSnapshotAsync(A<RulesByAppIndexGrain.GrainState>.Ignored))
                 .MustHaveHappenedTwiceExactly();
         }
 
@@ -71,7 +72,7 @@ namespace Squidex.Domain.Apps.Entities.Rules.Indexes
 
             Assert.Equal(new List<Guid> { ruleId2 }, result);
 
-            A.CallTo(() => persistence.WriteSnapshotAsync(A<RulesByAppIndexGrain.State>.Ignored))
+            A.CallTo(() => persistence.WriteSnapshotAsync(A<RulesByAppIndexGrain.GrainState>.Ignored))
                 .MustHaveHappenedTwiceOrMore();
         }
 
@@ -90,7 +91,7 @@ namespace Squidex.Domain.Apps.Entities.Rules.Indexes
 
             Assert.Equal(new List<Guid> { ruleId1, ruleId2 }, result);
 
-            A.CallTo(() => persistence.WriteSnapshotAsync(A<RulesByAppIndexGrain.State>.Ignored))
+            A.CallTo(() => persistence.WriteSnapshotAsync(A<RulesByAppIndexGrain.GrainState>.Ignored))
                 .MustHaveHappened();
         }
     }

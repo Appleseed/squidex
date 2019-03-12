@@ -8,9 +8,10 @@
 using System;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Newtonsoft.Json;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.CQRS.Events;
 using Squidex.Infrastructure.EventSourcing;
+using Squidex.Infrastructure.Json;
 
 namespace Squidex.Config.Domain
 {
@@ -29,7 +30,7 @@ namespace Squidex.Config.Domain
                     throw new ConfigurationException($"Configure EventPublisher type with 'eventPublishers:{child.Key}:type'.");
                 }
 
-                var eventsFilter = config.GetValue<string>("eventsFilter");
+                var eventsFilter = child.GetValue<string>("eventsFilter");
 
                 var enabled = child.GetValue<bool>("enabled");
 
@@ -53,9 +54,8 @@ namespace Squidex.Config.Domain
 
                     if (enabled)
                     {
-                        services.AddSingletonAs(c => new RabbitMqEventConsumer(c.GetRequiredService<JsonSerializerSettings>(), name, publisherConfig, exchange, eventsFilter))
-                            .As<IEventConsumer>()
-                            .As<IInitializable>();
+                        services.AddSingletonAs(c => new RabbitMqEventConsumer(c.GetRequiredService<IJsonSerializer>(), name, publisherConfig, exchange, eventsFilter))
+                            .As<IEventConsumer>();
                     }
                 }
                 else

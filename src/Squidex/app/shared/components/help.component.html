@@ -4,6 +4,8 @@
     </ng-container>
 
     <ng-container content>
-        <p *ngFor="let section of helpSections | async" [innerHTML]="section"></p>
+        <div class="help">
+            <div [innerHTML]="helpMarkdown | async | sqxHelpMarkdown"></div>
+        </div>
     </ng-container>
 </sqx-panel>

@@ -7,8 +7,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.OData.UriParser;
 using MongoDB.Driver;
 using NodaTime;
 using Squidex.Domain.Apps.Core.Contents;
@@ -17,7 +17,9 @@ using Squidex.Domain.Apps.Entities.Contents;
 using Squidex.Domain.Apps.Entities.Contents.Repositories;
 using Squidex.Domain.Apps.Entities.Schemas;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.Json;
 using Squidex.Infrastructure.Log;
+using Squidex.Infrastructure.Queries;
 
 namespace Squidex.Domain.Apps.Entities.MongoDb.Contents
 {
@@ -25,38 +27,41 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Contents
     {
         private readonly IMongoDatabase database;
         private readonly IAppProvider appProvider;
+        private readonly IJsonSerializer serializer;
         private readonly MongoContentDraftCollection contentsDraft;
         private readonly MongoContentPublishedCollection contentsPublished;
 
-        public MongoContentRepository(IMongoDatabase database, IAppProvider appProvider)
+        public MongoContentRepository(IMongoDatabase database, IAppProvider appProvider, IJsonSerializer serializer)
         {
             Guard.NotNull(appProvider, nameof(appProvider));
+            Guard.NotNull(serializer, nameof(serializer));
 
             this.appProvider = appProvider;
 
-            contentsDraft = new MongoContentDraftCollection(database);
-            contentsPublished = new MongoContentPublishedCollection(database);
+            this.serializer = serializer;
+
+            contentsDraft = new MongoContentDraftCollection(database, serializer);
+            contentsPublished = new MongoContentPublishedCollection(database, serializer);
 
             this.database = database;
         }
 
-        public void Initialize()
+        public Task InitializeAsync(CancellationToken ct = default)
         {
-            contentsDraft.Initialize();
-            contentsPublished.Initialize();
+            return Task.WhenAll(contentsDraft.InitializeAsync(ct), contentsPublished.InitializeAsync(ct));
         }
 
-        public async Task<IResultList<IContentEntity>> QueryAsync(IAppEntity app, ISchemaEntity schema, Status[] status, ODataUriParser odataQuery)
+        public async Task<IResultList<IContentEntity>> QueryAsync(IAppEntity app, ISchemaEntity schema, Status[] status, Query query)
         {
             using (Profiler.TraceMethod<MongoContentRepository>("QueryAsyncByQuery"))
             {
                 if (RequiresPublished(status))
                 {
-                    return await contentsPublished.QueryAsync(app, schema, odataQuery);
+                    return await contentsPublished.QueryAsync(app, schema, query);
                 }
                 else
                 {
-                    return await contentsDraft.QueryAsync(app, schema, odataQuery, status, true);
+                    return await contentsDraft.QueryAsync(app, schema, query, status, true);
                 }
             }
         }
@@ -91,11 +96,11 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Contents
             }
         }
 
-        public async Task<IReadOnlyList<Guid>> QueryNotFoundAsync(Guid appId, Guid schemaId, IList<Guid> ids)
+        public async Task<IReadOnlyList<Guid>> QueryIdsAsync(Guid appId, Guid schemaId, FilterNode filterNode)
         {
             using (Profiler.TraceMethod<MongoContentRepository>())
             {
-                return await contentsDraft.QueryNotFoundAsync(appId, schemaId, ids);
+                return await contentsDraft.QueryIdsAsync(appId, await appProvider.GetSchemaAsync(appId, schemaId), filterNode);
             }
         }
 

@@ -15,16 +15,14 @@ namespace Squidex.Infrastructure.Assets
 {
     internal class MongoGridFSAssetStoreTests : AssetStoreTests<MongoGridFsAssetStore>
     {
-        private static readonly IMongoClient MongoClient;
-        private static readonly IMongoDatabase MongoDatabase;
         private static readonly IGridFSBucket<string> GridFSBucket;
 
         static MongoGridFSAssetStoreTests()
         {
-            MongoClient = new MongoClient("mongodb://localhost");
-            MongoDatabase = MongoClient.GetDatabase("Test");
+            var mongoClient = new MongoClient("mongodb://localhost");
+            var mongoDatabase = mongoClient.GetDatabase("Test");
 
-            GridFSBucket = new GridFSBucket<string>(MongoDatabase, new GridFSBucketOptions
+            GridFSBucket = new GridFSBucket<string>(mongoDatabase, new GridFSBucketOptions
             {
                 BucketName = "fs"
             });
@@ -42,7 +40,9 @@ namespace Squidex.Infrastructure.Assets
         [Fact]
         public void Should_not_calculate_source_url()
         {
-            Assert.Equal("UNSUPPORTED", Sut.GenerateSourceUrl(AssetId, 1, null));
+            var url = Sut.GeneratePublicUrl(AssetId, 1, null);
+
+            Assert.Null(url);
         }
     }
 }

@@ -12,6 +12,7 @@ import { catchError, distinctUntilChanged, map, switchMap, tap } from 'rxjs/oper
 import {
     DateTime,
     DialogService,
+    ErrorDto,
     ImmutableArray,
     notify,
     Pager,
@@ -38,10 +39,14 @@ interface Snapshot {
     selectedContent?: ContentDto | null;
 }
 
+function sameContent(lhs: ContentDto, rhs?: ContentDto): boolean {
+    return lhs === rhs || (!!lhs && !!rhs && lhs.id === rhs.id && lhs.version === rhs.version);
+}
+
 export abstract class ContentsStateBase extends State<Snapshot> {
     public selectedContent =
         this.changes.pipe(map(x => x.selectedContent),
-            distinctUntilChanged());
+            distinctUntilChanged(sameContent));
 
     public contents =
         this.changes.pipe(map(x => x.contents),
@@ -131,7 +136,7 @@ export abstract class ContentsStateBase extends State<Snapshot> {
             notify(this.dialogs));
     }
 
-    public create(request: any, publish: boolean, now?: DateTime) {
+    public create(request: any, publish: boolean) {
         return this.contentsService.postContent(this.appName, this.schemaName, request, publish).pipe(
             tap(dto => {
                 this.dialogs.notifyInfo('Contents created successfully.');
@@ -152,7 +157,7 @@ export abstract class ContentsStateBase extends State<Snapshot> {
                 this.contentsService.changeContentStatus(this.appName, this.schemaName, c.id, action, dueTime, c.version).pipe(
                     catchError(error => of(error))))).pipe(
             tap(results => {
-                const error = results.find(x => !!x.error);
+                const error = results.find(x => x instanceof ErrorDto);
 
                 if (error) {
                     this.dialogs.notifyError(error);
@@ -169,7 +174,7 @@ export abstract class ContentsStateBase extends State<Snapshot> {
                 this.contentsService.deleteContent(this.appName, this.schemaName, c.id, c.version).pipe(
                     catchError(error => of(error))))).pipe(
             tap(results => {
-                const error = results.find(x => !!x.error);
+                const error = results.find(x => x instanceof ErrorDto);
 
                 if (error) {
                     this.dialogs.notifyError(error);
@@ -272,7 +277,7 @@ export abstract class ContentsStateBase extends State<Snapshot> {
     }
 
     public init(): Observable<any> {
-        this.next(s => ({ ...s, contentsPager: new Pager(0), contentsQuery: '', isArchive: false, isLoaded: false }));
+        this.next(s => ({ contents: ImmutableArray.of(), contentsPager: new Pager(0) }));
 
         return this.loadInternal();
     }
@@ -296,7 +301,8 @@ export abstract class ContentsStateBase extends State<Snapshot> {
     }
 
     public loadVersion(content: ContentDto, version: Version): Observable<Versioned<any>> {
-        return this.contentsService.getVersionData(this.appName, this.schemaName, content.id, version).pipe(notify(this.dialogs));
+        return this.contentsService.getVersionData(this.appName, this.schemaName, content.id, version).pipe(
+            notify(this.dialogs));
     }
 
     private get appName() {

@@ -11,6 +11,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EventStore.ClientAPI;
+using Squidex.Infrastructure.Json;
 using Squidex.Infrastructure.Log;
 
 namespace Squidex.Infrastructure.EventSourcing
@@ -20,37 +21,40 @@ namespace Squidex.Infrastructure.EventSourcing
         private const int WritePageSize = 500;
         private const int ReadPageSize = 500;
         private readonly IEventStoreConnection connection;
+        private readonly IJsonSerializer serializer;
         private readonly string prefix;
-        private ProjectionClient projectionClient;
+        private readonly ProjectionClient projectionClient;
 
-        public GetEventStore(IEventStoreConnection connection, string prefix, string projectionHost)
+        public GetEventStore(IEventStoreConnection connection, IJsonSerializer serializer, string prefix, string projectionHost)
         {
             Guard.NotNull(connection, nameof(connection));
+            Guard.NotNull(serializer, nameof(serializer));
 
             this.connection = connection;
+            this.serializer = serializer;
 
             this.prefix = prefix?.Trim(' ', '-').WithFallback("squidex");
 
             projectionClient = new ProjectionClient(connection, prefix, projectionHost);
         }
 
-        public void Initialize()
+        public async Task InitializeAsync(CancellationToken ct = default)
         {
             try
             {
-                connection.ConnectAsync().Wait();
+                await connection.ConnectAsync();
             }
             catch (Exception ex)
             {
                 throw new ConfigurationException("Cannot connect to event store.", ex);
             }
 
-            projectionClient.ConnectAsync().Wait();
+            await projectionClient.ConnectAsync(ct);
         }
 
         public IEventSubscription CreateSubscription(IEventSubscriber subscriber, string streamFilter, string position = null)
         {
-            return new GetEventStoreSubscription(connection, subscriber, projectionClient, prefix, position, streamFilter);
+            return new GetEventStoreSubscription(connection, subscriber, serializer, projectionClient, position, streamFilter);
         }
 
         public Task CreateIndexAsync(string property)
@@ -58,7 +62,7 @@ namespace Squidex.Infrastructure.EventSourcing
             return projectionClient.CreateProjectionAsync(property, string.Empty);
         }
 
-        public async Task QueryAsync(Func<StoredEvent, Task> callback, string property, object value, string position = null, CancellationToken ct = default(CancellationToken))
+        public async Task QueryAsync(Func<StoredEvent, Task> callback, string property, object value, string position = null, CancellationToken ct = default)
         {
             using (Profiler.TraceMethod<GetEventStore>())
             {
@@ -70,7 +74,7 @@ namespace Squidex.Infrastructure.EventSourcing
             }
         }
 
-        public async Task QueryAsync(Func<StoredEvent, Task> callback, string streamFilter = null, string position = null, CancellationToken ct = default(CancellationToken))
+        public async Task QueryAsync(Func<StoredEvent, Task> callback, string streamFilter = null, string position = null, CancellationToken ct = default)
         {
             using (Profiler.TraceMethod<GetEventStore>())
             {
@@ -82,9 +86,26 @@ namespace Squidex.Infrastructure.EventSourcing
             }
         }
 
-        private Task QueryAsync(Func<StoredEvent, Task> callback, string streamName, long sliceStart, CancellationToken ct)
+        private async Task QueryAsync(Func<StoredEvent, Task> callback, string streamName, long sliceStart, CancellationToken ct = default)
         {
-            return QueryAsync(callback, GetStreamName(streamName), sliceStart, ct);
+            StreamEventsSlice currentSlice;
+            do
+            {
+                currentSlice = await connection.ReadStreamEventsForwardAsync(streamName, sliceStart, ReadPageSize, false);
+
+                if (currentSlice.Status == SliceReadStatus.Success)
+                {
+                    sliceStart = currentSlice.NextEventNumber;
+
+                    foreach (var resolved in currentSlice.Events)
+                    {
+                        var storedEvent = Formatter.Read(resolved, serializer);
+
+                        await callback(storedEvent);
+                    }
+                }
+            }
+            while (!currentSlice.IsEndOfStream && !ct.IsCancellationRequested);
         }
 
         public async Task<IReadOnlyList<StoredEvent>> QueryAsync(string streamName, long streamPosition = 0)
@@ -106,7 +127,7 @@ namespace Squidex.Infrastructure.EventSourcing
 
                         foreach (var resolved in currentSlice.Events)
                         {
-                            var storedEvent = Formatter.Read(resolved);
+                            var storedEvent = Formatter.Read(resolved, serializer);
 
                             result.Add(storedEvent);
                         }
@@ -147,7 +168,7 @@ namespace Squidex.Infrastructure.EventSourcing
                     return;
                 }
 
-                var eventsToSave = events.Select(Formatter.Write).ToList();
+                var eventsToSave = events.Select(x => Formatter.Write(x, serializer)).ToList();
 
                 if (eventsToSave.Count < WritePageSize)
                 {

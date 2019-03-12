@@ -1,22 +1,21 @@
 #
 # Stage 1, Prebuild
 #
-FROM squidex/dotnet:2.1-sdk-chromium-phantomjs-node as builder
+FROM squidex/dotnet:2.2-sdk-chromium-phantomjs-node as builder
 
-COPY src/Squidex/package.json /tmp/package.json
+WORKDIR /src
+
+COPY src/Squidex/package*.json /tmp/
 
 # Install Node packages 
-RUN cd /tmp && npm install
+RUN cd /tmp && npm install --loglevel=error
 
 COPY . .
 
-WORKDIR /
-
 # Build Frontend
-RUN cp -a /tmp/node_modules /src/Squidex/ \
- && cd /src/Squidex \
+RUN cp -a /tmp/node_modules src/Squidex/ \
+ && cd src/Squidex \
  && npm run test:coverage \
- && npm run build:copy \
  && npm run build
  
 # Test Backend
@@ -33,13 +32,15 @@ RUN dotnet publish src/Squidex/Squidex.csproj --output /out/alpine --configurati
 #
 # Stage 2, Build runtime
 #
-FROM microsoft/dotnet:2.1-runtime-deps-alpine
+FROM microsoft/dotnet:2.2-runtime-deps-alpine
 
 # Default AspNetCore directory
 WORKDIR /app
 
 # add libuv
-RUN apk add --no-cache libuv \
+RUN apk update \
+ && apk add --no-cache libc6-compat \
+ && apk add --no-cache libuv \
  && ln -s /usr/lib/libuv.so.1 /usr/lib/libuv.so
 
 # Copy from build stage

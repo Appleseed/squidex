@@ -21,7 +21,18 @@ body {
     font-size: .8rem;
 }
 
+.text-decent {
+    color: $color-text-decent;
+}
+
+.drag-handle {
+    cursor: move;
+    color: $color-text-decent;
+}
+
+//
 // Rich editor icon. Must be placed here, because element is not created by angular.
+//
 .mce-i-assets {
     & {
         font-family: 'icomoon' !important;
@@ -34,6 +45,21 @@ body {
 
 .icon-bold {
     font-weight: bold;
+}
+
+//
+// Help texts
+//
+.help {
+    & {
+        font-size: .9rem;
+    }
+
+    h2,
+    h3,
+    h4 {
+        margin-top: 1rem;
+    }
 }
 
 //
@@ -161,6 +187,20 @@ body {
 //
 .spin {
     @include animation(spin 3s infinite linear);
+}
+
+.spin2 {
+    @include animation(spin2 5s infinite linear);
+}
+
+@include keyframes (spin2) {
+    50% {
+        @include rotate(180deg);
+    }
+
+    100% {
+        @include rotate(360deg);
+    }
 }
 
 @include keyframes (spin) {

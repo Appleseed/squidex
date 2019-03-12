@@ -6,7 +6,6 @@
 // ==========================================================================
 
 using FakeItEasy;
-using Orleans;
 using Squidex.Domain.Apps.Core.Apps;
 using Squidex.Domain.Apps.Entities.Apps.Commands;
 using Squidex.Domain.Apps.Entities.Apps.Services;
@@ -20,7 +19,6 @@ namespace Squidex.Domain.Apps.Entities.Apps.Guards
     public class GuardAppTests
     {
         private readonly IUserResolver users = A.Fake<IUserResolver>();
-        private readonly IGrainFactory grainFactory = A.Fake<IGrainFactory>();
         private readonly IAppPlansProvider appPlans = A.Fake<IAppPlansProvider>();
 
         public GuardAppTests()
@@ -41,7 +39,7 @@ namespace Squidex.Domain.Apps.Entities.Apps.Guards
             var command = new CreateApp { Name = "INVALID NAME" };
 
             ValidationAssert.Throws(() => GuardApp.CanCreate(command),
-                new ValidationError("Name must be a valid slug.", "Name"));
+                new ValidationError("Name is not a valid slug.", "Name"));
         }
 
         [Fact]

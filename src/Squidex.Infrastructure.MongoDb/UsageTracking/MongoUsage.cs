@@ -27,12 +27,12 @@ namespace Squidex.Infrastructure.UsageTracking
         [BsonElement]
         public string Key { get; set; }
 
-        [BsonRequired]
+        [BsonIgnoreIfNull]
         [BsonElement]
-        public double TotalCount { get; set; }
+        public string Category { get; set; }
 
         [BsonRequired]
         [BsonElement]
-        public double TotalElapsedMs { get; set; }
+        public Counters Counters { get; set; } = new Counters();
     }
 }

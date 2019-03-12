@@ -40,6 +40,7 @@
         height: 100%;
         background: $color-background;
         border-right: 1px solid $color-border;
+        position: relative;
     }
 
     // First row of the panel with the header. Fixed height.
@@ -85,6 +86,7 @@
             border-top: 1px solid $color-border;
             background: $color-background;
             padding: $panel-padding;
+            overflow-x: hidden;
             overflow-y: auto;
         }
 
@@ -157,6 +159,12 @@
             max-width: 16rem;
         }
 
+        & .panel-nav {
+            min-width: $panel-sidebar;
+            max-width: $panel-sidebar;
+            position: absolute;
+        }
+
         & .panel-link {
             & {
                 @include transition(background-color .3s ease);
@@ -164,6 +172,9 @@
                 display: block;
                 padding-top: .6rem;
                 padding-bottom: .6rem;
+                position: relative;
+                border-top: 1px solid transparent;
+                border-bottom: 1px solid transparent;
             }
 
             &:hover {
@@ -171,9 +182,25 @@
             }
 
             &.active {
-                color: $color-dark-foreground;
-                border: 0;
-                background: $color-theme-blue;
+                & {
+                    border-color: $color-border;
+                }
+
+                &::before {
+                    @include absolute(0, -1px, 0, auto);
+                    width: 2px;
+                    color: transparent;
+                    content: '';
+                    background: $panel-light-background;
+                }
+            }
+
+            &-gray {
+                &.active {
+                    &::before {
+                        background: transparent;
+                    }
+                }
             }
         }
     }
@@ -281,16 +308,14 @@
         }
     }
 
-    &-section {
-        border-top: 1px solid $color-border;
-        padding: 1rem;
-    }
-
     &-item {
         & {
-            padding: .25rem 0;
+            @include border-radius;
+            padding: .25rem 1rem;
+            display: block;
             font-size: .9rem;
             font-weight: normal;
+            margin-bottom: .25rem;
         }
 
         &-remove {

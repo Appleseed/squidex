@@ -5,7 +5,6 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-
 // tslint:disable:prefer-for-of
 
 import { FormArray, FormBuilder, FormControl, FormGroup, ValidatorFn, Validators } from '@angular/forms';
@@ -146,15 +145,9 @@ export class FieldValidatorsFactory implements FieldPropertiesVisitor<ValidatorF
     }
 
     public visitNumber(properties: NumberFieldPropertiesDto): ValidatorFn[] {
-        const validators: ValidatorFn[] = [];
-
-        if (properties.minValue) {
-            validators.push(Validators.min(properties.minValue));
-        }
-
-        if (properties.maxValue) {
-            validators.push(Validators.max(properties.maxValue));
-        }
+        const validators: ValidatorFn[] = [
+            ValidatorsEx.between(properties.minValue, properties.maxValue)
+        ];
 
         if (properties.allowedValues && properties.allowedValues.length > 0) {
             const values: (number | null)[] = properties.allowedValues;
@@ -170,15 +163,9 @@ export class FieldValidatorsFactory implements FieldPropertiesVisitor<ValidatorF
     }
 
     public visitString(properties: StringFieldPropertiesDto): ValidatorFn[] {
-        const validators: ValidatorFn[] = [];
-
-        if (properties.minLength) {
-            validators.push(Validators.minLength(properties.minLength));
-        }
-
-        if (properties.maxLength) {
-            validators.push(Validators.maxLength(properties.maxLength));
-        }
+        const validators: ValidatorFn[] = [
+            ValidatorsEx.betweenLength(properties.minLength, properties.maxLength)
+        ];
 
         if (properties.pattern && properties.pattern.length > 0) {
             validators.push(ValidatorsEx.pattern(properties.pattern, properties.patternMessage));
@@ -198,56 +185,38 @@ export class FieldValidatorsFactory implements FieldPropertiesVisitor<ValidatorF
     }
 
     public visitArray(properties: ArrayFieldPropertiesDto): ValidatorFn[] {
-        const validators: ValidatorFn[] = [];
-
-        if (properties.minItems) {
-            validators.push(Validators.minLength(properties.minItems));
-        }
-
-        if (properties.maxItems) {
-            validators.push(Validators.maxLength(properties.maxItems));
-        }
+        const validators: ValidatorFn[] = [
+            ValidatorsEx.betweenLength(properties.minItems, properties.maxItems)
+        ];
 
         return validators;
     }
 
     public visitAssets(properties: AssetsFieldPropertiesDto): ValidatorFn[] {
-        const validators: ValidatorFn[] = [];
-
-        if (properties.minItems) {
-            validators.push(Validators.minLength(properties.minItems));
-        }
-
-        if (properties.maxItems) {
-            validators.push(Validators.maxLength(properties.maxItems));
-        }
+        const validators: ValidatorFn[] = [
+            ValidatorsEx.betweenLength(properties.minItems, properties.maxItems)
+        ];
 
         return validators;
     }
 
     public visitReferences(properties: ReferencesFieldPropertiesDto): ValidatorFn[] {
-        const validators: ValidatorFn[] = [];
-
-        if (properties.minItems) {
-            validators.push(Validators.minLength(properties.minItems));
-        }
-
-        if (properties.maxItems) {
-            validators.push(Validators.maxLength(properties.maxItems));
-        }
+        const validators: ValidatorFn[] = [
+            ValidatorsEx.betweenLength(properties.minItems, properties.maxItems)
+        ];
 
         return validators;
     }
 
     public visitTags(properties: TagsFieldPropertiesDto): ValidatorFn[] {
-        const validators: ValidatorFn[] = [];
+        const validators: ValidatorFn[] = [
+            ValidatorsEx.betweenLength(properties.minItems, properties.maxItems)
+        ];
 
-        if (properties.minItems) {
-            validators.push(Validators.minLength(properties.minItems));
-        }
+        if (properties.allowedValues && properties.allowedValues.length > 0) {
+            const values: (string | null)[] = properties.allowedValues;
 
-        if (properties.maxItems) {
-            validators.push(Validators.maxLength(properties.maxItems));
+            validators.push(ValidatorsEx.validArrayValues(values));
         }
 
         return validators;
@@ -368,24 +337,33 @@ export class EditContentForm extends Form<FormGroup> {
         this.findArrayItemForm(field, language).removeAt(index);
     }
 
-    public insertArrayItem(field: RootFieldDto, language: AppLanguageDto) {
+    public insertArrayItem(field: RootFieldDto, language: AppLanguageDto, source?: FormGroup) {
         if (field.nested.length > 0) {
             const formControl = this.findArrayItemForm(field, language);
 
-            this.addArrayItem(field, language, formControl);
+            this.addArrayItem(field, language, formControl, source);
         }
     }
 
-    private addArrayItem(field: RootFieldDto, language: AppLanguageDto | null, partitionForm: FormArray) {
+    private addArrayItem(field: RootFieldDto, language: AppLanguageDto | null, partitionForm: FormArray, source?: FormGroup) {
         const itemForm = new FormGroup({});
 
-        let isOptional = field.isLocalizable && language !== null && language.isOptional;
+        let isOptional = field.isLocalizable && !!language && language.isOptional;
 
         for (let nested of field.nested) {
             const nestedValidators = FieldValidatorsFactory.createValidators(nested, isOptional);
-            const nestedDefault = FieldDefaultValue.get(nested);
 
-            itemForm.setControl(nested.name, new FormControl(nestedDefault, nestedValidators));
+            let value = FieldDefaultValue.get(nested);
+
+            if (source) {
+                const sourceField = source.get(nested.name);
+
+                if (sourceField) {
+                    value = sourceField.value;
+                }
+            }
+
+            itemForm.setControl(nested.name, new FormControl(value, nestedValidators));
         }
 
         partitionForm.push(itemForm);
@@ -413,24 +391,18 @@ export class EditContentForm extends Form<FormGroup> {
                 const fieldValue = value ? value[field.name] || {} : {};
 
                 const addControls = (key: string, language: AppLanguageDto | null) => {
+                    const partitionValidators = FieldValidatorsFactory.createValidators(field, language !== null && language.isOptional);
+                    const partitionForm = new FormArray([], partitionValidators);
+
                     const partitionValue = fieldValue[key];
 
-                    let partitionForm = <FormArray>fieldForm.controls[key];
-
-                    if (!partitionForm) {
-                        partitionForm = new FormArray([]);
-
-                        fieldForm.setControl(key, partitionForm);
+                    if (Types.isArray(partitionValue)) {
+                        for (let i = 0; i < partitionValue.length; i++) {
+                            this.addArrayItem(field, language, partitionForm);
+                        }
                     }
 
-                    const length = Types.isArray(partitionValue) ? partitionValue.length : 0;
-
-                    while (partitionForm.controls.length < length) {
-                        this.addArrayItem(field, language, partitionForm);
-                    }
-                    while (partitionForm.controls.length > length) {
-                        partitionForm.removeAt(partitionForm.length - 1);
-                    }
+                    fieldForm.setControl(key, partitionForm);
                 };
 
                 if (field.isLocalizable) {

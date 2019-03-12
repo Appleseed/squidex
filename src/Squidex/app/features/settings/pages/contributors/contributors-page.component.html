@@ -6,7 +6,7 @@
     </ng-container>
 
     <ng-container menu>
-        <button class="btn btn-link btn-secondary" (click)="reload()" title="Refresh contributors (CTRL + SHIFT + R)">
+        <button type="button" class="btn btn-text-secondary" (click)="reload()" title="Refresh contributors (CTRL + SHIFT + R)">
             <i class="icon-reset"></i> Refresh
         </button>
 
@@ -22,22 +22,22 @@
             </ng-container>
             
             <ng-container *ngIf="contributorsState.contributors | async; let contributors">
-                <table class="table table-items table-fixed">
+                <table class="table table-items table-fixed" *ngIf="rolesState.roles | async; let roles">
                     <tbody *ngFor="let contributorInfo of contributors; trackBy: trackByContributor">
                         <tr>
                             <td class="cell-user">
-                                <img class="user-picture" [attr.title]="contributorInfo.contributor.contributorId | sqxUserName" [attr.src]="contributorInfo.contributor.contributorId | sqxUserPicture" />
+                                <img class="user-picture" title="{{contributorInfo.contributor.contributorId | sqxUserName}}" [attr.src]="contributorInfo.contributor.contributorId | sqxUserPicture" />
                             </td>
                             <td class="cell-auto">
                                 <span class="user-name table-cell">{{contributorInfo.contributor.contributorId | sqxUserName}}</span>
                             </td>
                             <td class="cell-time">
-                                <select class="form-control" [ngModel]="contributorInfo.contributor.permission" (ngModelChange)="changePermission(contributorInfo.contributor, $event)" [disabled]="contributorInfo.isCurrentUser">
-                                    <option *ngFor="let permission of usersPermissions" [ngValue]="permission">{{permission}}</option>
+                                <select class="form-control" [ngModel]="contributorInfo.contributor.role" (ngModelChange)="changeRole(contributorInfo.contributor, $event)" [disabled]="contributorInfo.isCurrentUser">
+                                    <option *ngFor="let role of roles" [ngValue]="role.name">{{role.name}}</option>
                                 </select>
                             </td>
                             <td class="cell-actions">
-                                <button *ngIf="!contributorInfo.isCurrentUser" type="button" class="btn btn-link btn-danger" (click)="remove(contributorInfo.contributor)">
+                                <button *ngIf="!contributorInfo.isCurrentUser" type="button" class="btn btn-text-danger" (click)="remove(contributorInfo.contributor)">
                                     <i class="icon-bin2"></i>
                                 </button>
                             </td>
@@ -46,37 +46,42 @@
                     </tbody>
                 </table>
                 
-                <div class="table-items-footer" *ngIf="(contributorsState.isMaxReached | async) === false">
-                    <form [formGroup]="assignContributorForm.form" (ngSubmit)="assignContributor()">
-                        <div class="row no-gutters">
-                            <div class="col">
-                                <sqx-autocomplete [source]="usersDataSource" formControlName="user" [inputName]="'contributor'" placeholder="Find existing user" displayProperty="displayName">
-                                    <ng-template let-user="$implicit">
-                                        <span class="autocomplete-user">
-                                            <img class="user-picture autocomplete-user-picture" [attr.src]="user | sqxUserDtoPicture" />
+                <ng-container>
+                    <div class="table-items-footer" *ngIf="(contributorsState.isMaxReached | async) === false">
+                        <form [formGroup]="assignContributorForm.form" (ngSubmit)="assignContributor()">
+                            <div class="row no-gutters">
+                                <div class="col">
+                                    <sqx-autocomplete [source]="usersDataSource" formControlName="user" [inputName]="'contributor'" placeholder="Find existing user" displayProperty="displayName">
+                                        <ng-template let-user="$implicit">
+                                            <span class="autocomplete-user">
+                                                <img class="user-picture autocomplete-user-picture" [attr.src]="user | sqxUserDtoPicture" />
 
-                                            <span class="user-name autocomplete-user-name">{{user.displayName}}</span>
-                                        </span>
-                                    </ng-template>
-                                </sqx-autocomplete>
+                                                <span class="user-name autocomplete-user-name">{{user.displayName}}</span>
+                                            </span>
+                                        </ng-template>
+                                    </sqx-autocomplete>
+                                </div>
+                                <div class="col-auto pl-1">
+                                    <button type="submit" class="btn btn-success" [disabled]="assignContributorForm.hasNoUser | async">Add Contributor</button>
+                                </div>
                             </div>
-                            <div class="col col-auto pl-1">
-                                <button type="submit" class="btn btn-success" [disabled]="assignContributorForm.hasNoUser | async">Add Contributor</button>
-                            </div>
-                        </div>
-                    </form>
-                </div>
+                        </form>
+                    </div>
+                </ng-container>
             </ng-container>
         </ng-container>
     </ng-container>
 
     <ng-container sidebar>
-        <a class="panel-link" routerLink="history" routerLinkActive="active">
-            <i class="icon-time"></i>
-        </a>
-        <a class="panel-link" routerLink="help" routerLinkActive="active">
-            <i class="icon-help"></i>
-        </a>
+        <div class="panel-nav">
+            <a class="panel-link" routerLink="history" routerLinkActive="active" title="History" titlePosition="left">
+                <i class="icon-time"></i>
+            </a>
+
+            <a class="panel-link" routerLink="help" routerLinkActive="active" title="Help" titlePosition="left">
+                <i class="icon-help"></i>
+            </a>
+        </div>
     </ng-container>
 </sqx-panel>
 

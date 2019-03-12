@@ -6,44 +6,79 @@
 // ==========================================================================
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
-using NSwag.Annotations;
+using Microsoft.Extensions.Options;
 using Squidex.Areas.Api.Controllers.Statistics.Models;
+using Squidex.Config;
+using Squidex.Domain.Apps.Entities.Apps;
 using Squidex.Domain.Apps.Entities.Apps.Services;
-using Squidex.Domain.Apps.Entities.Assets.Repositories;
+using Squidex.Domain.Apps.Entities.Assets;
 using Squidex.Infrastructure.Commands;
 using Squidex.Infrastructure.UsageTracking;
 using Squidex.Pipeline;
+using Squidex.Shared;
 
 namespace Squidex.Areas.Api.Controllers.Statistics
 {
     /// <summary>
     /// Retrieves usage information for apps.
     /// </summary>
-    [ApiAuthorize]
-    [ApiExceptionFilter]
-    [AppApi]
-    [MustBeAppEditor]
-    [SwaggerTag(nameof(Statistics))]
+    [ApiExplorerSettings(GroupName = nameof(Statistics))]
     public sealed class UsagesController : ApiController
     {
         private readonly IUsageTracker usageTracker;
-        private readonly IAppPlansProvider appPlanProvider;
-        private readonly IAssetStatsRepository assetStatsRepository;
+        private readonly IAppLogStore appLogStore;
+        private readonly IAppPlansProvider appPlansProvider;
+        private readonly IAssetUsageTracker assetStatsRepository;
+        private readonly IDataProtector dataProtector;
+        private readonly MyUrlsOptions urlsOptions;
 
         public UsagesController(
             ICommandBus commandBus,
             IUsageTracker usageTracker,
-            IAppPlansProvider appPlanProvider,
-            IAssetStatsRepository assetStatsRepository)
+            IAppLogStore appLogStore,
+            IAppPlansProvider appPlansProvider,
+            IAssetUsageTracker assetStatsRepository,
+            IDataProtectionProvider dataProtection,
+            IOptions<MyUrlsOptions> urlsOptions)
             : base(commandBus)
         {
             this.usageTracker = usageTracker;
 
-            this.appPlanProvider = appPlanProvider;
+            this.appLogStore = appLogStore;
+            this.appPlansProvider = appPlansProvider;
             this.assetStatsRepository = assetStatsRepository;
+            this.urlsOptions = urlsOptions.Value;
+
+            dataProtector = dataProtection.CreateProtector("LogToken");
+        }
+
+        /// <summary>
+        /// Get api calls as log file.
+        /// </summary>
+        /// <param name="app">The name of the app.</param>
+        /// <returns>
+        /// 200 => Usage tracking results returned.
+        /// 404 => App not found.
+        /// </returns>
+        [HttpGet]
+        [Route("apps/{app}/usages/log/")]
+        [ProducesResponseType(typeof(LogDownloadDto), 200)]
+        [ApiPermission(Permissions.AppCommon)]
+        [ApiCosts(0)]
+        public IActionResult GetLog(string app)
+        {
+            var token = dataProtector.Protect(App.Id.ToString());
+
+            var url = urlsOptions.BuildUrl($"/api/apps/log/{token}/");
+
+            var response = new LogDownloadDto { DownloadUrl = url };
+
+            return Ok(response);
         }
 
         /// <summary>
@@ -57,12 +92,13 @@ namespace Squidex.Areas.Api.Controllers.Statistics
         [HttpGet]
         [Route("apps/{app}/usages/calls/month/")]
         [ProducesResponseType(typeof(CurrentCallsDto), 200)]
+        [ApiPermission(Permissions.AppCommon)]
         [ApiCosts(0)]
         public async Task<IActionResult> GetMonthlyCalls(string app)
         {
-            var count = await usageTracker.GetMonthlyCallsAsync(App.Id.ToString(), DateTime.Today);
+            var count = await usageTracker.GetMonthlyCallsAsync(AppId.ToString(), DateTime.Today);
 
-            var plan = appPlanProvider.GetPlanForApp(App);
+            var plan = appPlansProvider.GetPlanForApp(App);
 
             var response = new CurrentCallsDto { Count = count, MaxAllowed = plan.MaxApiCalls };
 
@@ -82,7 +118,8 @@ namespace Squidex.Areas.Api.Controllers.Statistics
         /// </returns>
         [HttpGet]
         [Route("apps/{app}/usages/calls/{fromDate}/{toDate}/")]
-        [ProducesResponseType(typeof(CallsUsageDto[]), 200)]
+        [ProducesResponseType(typeof(Dictionary<string, CallsUsageDto[]>), 200)]
+        [ApiPermission(Permissions.AppCommon)]
         [ApiCosts(0)]
         public async Task<IActionResult> GetUsages(string app, DateTime fromDate, DateTime toDate)
         {
@@ -91,9 +128,9 @@ namespace Squidex.Areas.Api.Controllers.Statistics
                 return BadRequest();
             }
 
-            var entities = await usageTracker.QueryAsync(App.Id.ToString(), fromDate.Date, toDate.Date);
+            var entities = await usageTracker.QueryAsync(AppId.ToString(), fromDate.Date, toDate.Date);
 
-            var response = entities.Select(CallsUsageDto.FromUsage);
+            var response = entities.ToDictionary(x => x.Key, x => x.Value.Select(CallsUsageDto.FromUsage).ToArray());
 
             return Ok(response);
         }
@@ -109,12 +146,13 @@ namespace Squidex.Areas.Api.Controllers.Statistics
         [HttpGet]
         [Route("apps/{app}/usages/storage/today/")]
         [ProducesResponseType(typeof(CurrentStorageDto), 200)]
+        [ApiPermission(Permissions.AppCommon)]
         [ApiCosts(0)]
         public async Task<IActionResult> GetCurrentStorageSize(string app)
         {
-            var size = await assetStatsRepository.GetTotalSizeAsync(App.Id);
+            var size = await assetStatsRepository.GetTotalSizeAsync(AppId);
 
-            var plan = appPlanProvider.GetPlanForApp(App);
+            var plan = appPlansProvider.GetPlanForApp(App);
 
             var response = new CurrentStorageDto { Size = size, MaxAllowed = plan.MaxAssetSize };
 
@@ -122,7 +160,7 @@ namespace Squidex.Areas.Api.Controllers.Statistics
         }
 
         /// <summary>
-        /// Get storage usage in date range.
+        /// Get asset usage by date.
         /// </summary>
         /// <param name="app">The name of the app.</param>
         /// <param name="fromDate">The from date.</param>
@@ -135,6 +173,7 @@ namespace Squidex.Areas.Api.Controllers.Statistics
         [HttpGet]
         [Route("apps/{app}/usages/storage/{fromDate}/{toDate}/")]
         [ProducesResponseType(typeof(StorageUsageDto[]), 200)]
+        [ApiPermission(Permissions.AppCommon)]
         [ApiCosts(0)]
         public async Task<IActionResult> GetStorageSizes(string app, DateTime fromDate, DateTime toDate)
         {
@@ -143,11 +182,26 @@ namespace Squidex.Areas.Api.Controllers.Statistics
                 return BadRequest();
             }
 
-            var entities = await assetStatsRepository.QueryAsync(App.Id, fromDate.Date, toDate.Date);
+            var entities = await assetStatsRepository.QueryAsync(AppId, fromDate.Date, toDate.Date);
 
-            var models = entities.Select(StorageUsageDto.FromStats).ToList();
+            var models = entities.Select(StorageUsageDto.FromStats).ToArray();
 
             return Ok(models);
+        }
+
+        [HttpGet]
+        [Route("apps/log/{token}/")]
+        [ApiExplorerSettings(IgnoreApi = true)]
+        public IActionResult GetLogFile(string token)
+        {
+            var appId = dataProtector.Unprotect(token);
+
+            var today = DateTime.Today;
+
+            return new FileCallbackResult("text/csv", $"Usage-{today:yyy-MM-dd}.csv", false, stream =>
+            {
+                return appLogStore.ReadLogAsync(appId, today.AddDays(-30), today, stream);
+            });
         }
     }
 }

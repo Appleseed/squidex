@@ -30,13 +30,13 @@ namespace Squidex.Infrastructure.Assets
             this.bucketName = bucketName;
         }
 
-        public void Initialize()
+        public async Task InitializeAsync(CancellationToken ct = default)
         {
             try
             {
                 storageClient = StorageClient.Create();
 
-                storageClient.GetBucket(bucketName);
+                await storageClient.GetBucketAsync(bucketName, cancellationToken: ct);
             }
             catch (Exception ex)
             {
@@ -44,14 +44,12 @@ namespace Squidex.Infrastructure.Assets
             }
         }
 
-        public string GenerateSourceUrl(string id, long version, string suffix)
+        public string GeneratePublicUrl(string id, long version, string suffix)
         {
-            var objectName = GetObjectName(id, version, suffix);
-
-            return $"https://storage.cloud.google.com/{bucketName}/{objectName}";
+            return null;
         }
 
-        public async Task CopyAsync(string sourceFileName, string id, long version, string suffix, CancellationToken ct = default(CancellationToken))
+        public async Task CopyAsync(string sourceFileName, string id, long version, string suffix, CancellationToken ct = default)
         {
             var objectName = GetObjectName(id, version, suffix);
 
@@ -69,7 +67,7 @@ namespace Squidex.Infrastructure.Assets
             }
         }
 
-        public async Task DownloadAsync(string id, long version, string suffix, Stream stream, CancellationToken ct = default(CancellationToken))
+        public async Task DownloadAsync(string id, long version, string suffix, Stream stream, CancellationToken ct = default)
         {
             var objectName = GetObjectName(id, version, suffix);
 
@@ -83,12 +81,12 @@ namespace Squidex.Infrastructure.Assets
             }
         }
 
-        public Task UploadAsync(string id, long version, string suffix, Stream stream, CancellationToken ct = default(CancellationToken))
+        public Task UploadAsync(string id, long version, string suffix, Stream stream, CancellationToken ct = default)
         {
             return UploadCoreAsync(GetObjectName(id, version, suffix), stream, ct);
         }
 
-        public Task UploadAsync(string fileName, Stream stream, CancellationToken ct = default(CancellationToken))
+        public Task UploadAsync(string fileName, Stream stream, CancellationToken ct = default)
         {
             return UploadCoreAsync(fileName, stream, ct);
         }
@@ -103,7 +101,7 @@ namespace Squidex.Infrastructure.Assets
             return DeleteCoreAsync(fileName);
         }
 
-        private async Task UploadCoreAsync(string objectName, Stream stream, CancellationToken ct)
+        private async Task UploadCoreAsync(string objectName, Stream stream, CancellationToken ct = default)
         {
             try
             {

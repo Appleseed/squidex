@@ -6,6 +6,7 @@
 // ==========================================================================
 
 using System;
+using System.Globalization;
 using System.Linq;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -33,10 +34,7 @@ namespace Squidex.Config
             {
                 if (typeof(TInterface) != typeof(T))
                 {
-                    services.AddSingleton(typeof(TInterface), c =>
-                    {
-                        return c.GetRequiredService<T>();
-                    });
+                    services.AddSingleton(typeof(TInterface), c => c.GetRequiredService<T>());
                 }
 
                 return this;
@@ -61,12 +59,16 @@ namespace Squidex.Config
         {
             services.AddSingleton(typeof(T), factory);
 
+            RegisterDefaults<T>(services);
+
             return new InterfaceRegistrator<T>(services);
         }
 
         public static InterfaceRegistrator<T> AddSingletonAs<T>(this IServiceCollection services, T instance) where T : class
         {
             services.AddSingleton(typeof(T), instance);
+
+            RegisterDefaults<T>(services);
 
             return new InterfaceRegistrator<T>(services);
         }
@@ -75,14 +77,37 @@ namespace Squidex.Config
         {
             services.AddSingleton<T, T>();
 
+            RegisterDefaults<T>(services);
+
             return new InterfaceRegistrator<T>(services);
         }
 
-        public static T GetOptionalValue<T>(this IConfiguration config, string path, T defaultValue = default(T))
+        private static void RegisterDefaults<T>(IServiceCollection services) where T : class
+        {
+            if (typeof(T).GetInterfaces().Contains(typeof(IInitializable)))
+            {
+                services.AddSingleton(typeof(IInitializable), c => c.GetRequiredService<T>());
+            }
+        }
+
+        public static T GetOptionalValue<T>(this IConfiguration config, string path, T defaultValue = default)
         {
             var value = config.GetValue(path, defaultValue);
 
             return value;
+        }
+
+        public static int GetOptionalValue(this IConfiguration config, string path, int defaultValue)
+        {
+            var value = config.GetValue<string>(path);
+            var result = defaultValue;
+
+            if (string.IsNullOrWhiteSpace(value) || !int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out result))
+            {
+                result = defaultValue;
+            }
+
+            return result;
         }
 
         public static string GetRequiredValue(this IConfiguration config, string path)

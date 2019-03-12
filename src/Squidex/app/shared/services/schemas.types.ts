@@ -73,7 +73,7 @@ export function createProperties(fieldType: string, values: Object | null = null
             properties = new StringFieldPropertiesDto('Input');
             break;
         case 'Tags':
-            properties = new TagsFieldPropertiesDto();
+            properties = new TagsFieldPropertiesDto('Tags');
             break;
         default:
             throw 'Invalid properties type';
@@ -124,6 +124,10 @@ export abstract class FieldPropertiesDto {
         if (props) {
             Object.assign(this, props);
         }
+    }
+
+    public get isComplexUI() {
+        return true;
     }
 
     public abstract accept<T>(visitor: FieldPropertiesVisitor<T>): T;
@@ -179,6 +183,10 @@ export class BooleanFieldPropertiesDto extends FieldPropertiesDto {
     public readonly inlineEditable: boolean = false;
     public readonly defaultValue?: boolean;
 
+    public get isComplexUI() {
+        return false;
+    }
+
     constructor(editor: string,
         props?: Partial<BooleanFieldPropertiesDto>
     ) {
@@ -197,6 +205,10 @@ export class DateTimeFieldPropertiesDto extends FieldPropertiesDto {
     public readonly maxValue?: string;
     public readonly minValue?: string;
     public readonly calculatedDefaultValue?: string;
+
+    public get isComplexUI() {
+        return false;
+    }
 
     constructor(editor: string,
         props?: Partial<DateTimeFieldPropertiesDto>
@@ -241,10 +253,15 @@ export class NumberFieldPropertiesDto extends FieldPropertiesDto {
     public readonly fieldType = 'Number';
 
     public readonly inlineEditable: boolean = false;
+    public readonly isUnique: boolean = false;
     public readonly defaultValue?: number;
     public readonly maxValue?: number;
     public readonly minValue?: number;
     public readonly allowedValues?: number[];
+
+    public get isComplexUI() {
+        return false;
+    }
 
     constructor(editor: string,
         props?: Partial<NumberFieldPropertiesDto>
@@ -279,12 +296,17 @@ export class StringFieldPropertiesDto extends FieldPropertiesDto {
     public readonly fieldType = 'String';
 
     public readonly inlineEditable = false;
+    public readonly isUnique: boolean = false;
     public readonly defaultValue?: string;
     public readonly pattern?: string;
     public readonly patternMessage?: string;
     public readonly minLength?: number;
     public readonly maxLength?: number;
     public readonly allowedValues?: string[];
+
+    public get isComplexUI() {
+        return this.editor !== 'Input' && this.editor !== 'Color' && this.editor !== 'Radio' && this.editor !== 'Slug' && this.editor !== 'TextArea';
+    }
 
     constructor(editor: string,
         props?: Partial<StringFieldPropertiesDto>
@@ -302,11 +324,16 @@ export class TagsFieldPropertiesDto extends FieldPropertiesDto {
 
     public readonly minItems?: number;
     public readonly maxItems?: number;
+    public readonly allowedValues?: string[];
 
-    constructor(
+    public get isComplexUI() {
+        return false;
+    }
+
+    constructor(editor: string,
         props?: Partial<TagsFieldPropertiesDto>
     ) {
-        super('Default', props);
+        super('Tags', props);
     }
 
     public accept<T>(visitor: FieldPropertiesVisitor<T>): T {

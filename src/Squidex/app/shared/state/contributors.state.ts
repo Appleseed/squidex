@@ -19,7 +19,12 @@ import {
     Version
 } from '@app/framework';
 
-import { AppContributorDto, AppContributorsService } from './../services/app-contributors.service';
+import {
+    AppContributorDto,
+    AppContributorsService,
+    AssignContributorDto
+} from './../services/app-contributors.service';
+
 import { AuthService } from './../services/auth.service';
 import { AppsState } from './apps.state';
 
@@ -95,12 +100,14 @@ export class ContributorsState extends State<Snapshot> {
             notify(this.dialogs));
     }
 
-    public assign(request: AppContributorDto): Observable<any> {
+    public assign(request: AssignContributorDto): Observable<boolean> {
         return this.appContributorsService.postContributor(this.appName, request, this.version).pipe(
-            tap(dto => {
-                const contributors = this.updateContributors(dto.payload.contributorId, request.permission, dto.version);
+            map(dto => {
+                const contributors = this.updateContributors(dto.payload.contributorId, request.role, dto.version);
 
                 this.replaceContributors(contributors, dto.version);
+
+                return dto.payload.wasInvited;
             }),
             catchError(error => {
                 if (Types.is(error, ErrorDto) && error.statusCode === 404) {
@@ -112,8 +119,8 @@ export class ContributorsState extends State<Snapshot> {
             notify(this.dialogs));
     }
 
-    private updateContributors(id: string, permission: string, version: Version) {
-        const contributor = new AppContributorDto(id, permission);
+    private updateContributors(id: string, role: string, version: Version) {
+        const contributor = new AppContributorDto(id, role);
         const contributors = this.snapshot.contributors;
 
         if (contributors.find(x => x.contributor.contributorId === id)) {

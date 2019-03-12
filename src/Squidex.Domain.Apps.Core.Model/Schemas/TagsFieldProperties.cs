@@ -5,16 +5,21 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using Squidex.Infrastructure;
+using System.Collections.ObjectModel;
 
 namespace Squidex.Domain.Apps.Core.Schemas
 {
-    [TypeName("TagsField")]
     public sealed class TagsFieldProperties : FieldProperties
     {
+        public ReadOnlyCollection<string> AllowedValues { get; set; }
+
         public int? MinItems { get; set; }
 
         public int? MaxItems { get; set; }
+
+        public TagsFieldEditor Editor { get; set; }
+
+        public TagsFieldNormalization Normalization { get; set; }
 
         public override T Accept<T>(IFieldPropertiesVisitor<T> visitor)
         {
@@ -26,14 +31,14 @@ namespace Squidex.Domain.Apps.Core.Schemas
             return visitor.Visit((IField<TagsFieldProperties>)field);
         }
 
-        public override RootField CreateRootField(long id, string name, Partitioning partitioning)
+        public override RootField CreateRootField(long id, string name, Partitioning partitioning, IFieldSettings settings = null)
         {
-            return Fields.Tags(id, name, partitioning, this);
+            return Fields.Tags(id, name, partitioning, this, settings);
         }
 
-        public override NestedField CreateNestedField(long id, string name)
+        public override NestedField CreateNestedField(long id, string name, IFieldSettings settings = null)
         {
-            return Fields.Tags(id, name, this);
+            return Fields.Tags(id, name, this, settings);
         }
     }
 }

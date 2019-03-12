@@ -33,7 +33,7 @@ module.exports = {
         ]
     },
 
-    /*
+    /**
      * Options affecting the normal modules.
      *
      * See: https://webpack.js.org/configuration/module/
@@ -48,16 +48,19 @@ module.exports = {
             test: /\.mjs$/,
             type: "javascript/auto",
             include: [/node_modules/],
-          },{
+            
+          }, {
+            test: /[\/\\]@angular[\/\\]core[\/\\].+\.js$/,
+            parser: { system: true },
+            include: [/node_modules/]
+          }, {
             test: /\.ts$/,
             use: [{
-                loader: 'awesome-typescript-loader'
+                loader: 'awesome-typescript-loader', options: { useCache: true, useBabel: true }
             }, {
                 loader: 'angular-router-loader'
             }, {
                 loader: 'angular2-template-loader'
-            }, {
-                loader: 'tslint-loader'
             }],
             exclude: [/node_modules/]
         }, {
@@ -106,7 +109,7 @@ module.exports = {
     },
 
     plugins: [
-        /*
+        /**
          * Puts each bundle into a file and appends the hash of the file to the path.
          * 
          * See: https://github.com/webpack-contrib/mini-css-extract-plugin
@@ -115,21 +118,9 @@ module.exports = {
 
         new webpack.LoaderOptionsPlugin({
             options: {
-                tslint: {
-                    /**
-                    * Run tslint in production build and fail if there is one warning.
-                    * 
-                    * See: https://github.com/wbuchwalter/tslint-loader
-                    */
-                    emitErrors: true,
-                    /**
-                    * Share the configuration file with the IDE
-                    */
-                    configuration: require('./../tslint.json')
-                },
                 htmlLoader: {
                     /**
-                     * Define the root for images, so that we can use absolute url's
+                     * Define the root for images, so that we can use absolute urls.
                      * 
                      * See: https://github.com/webpack/html-loader#Advanced_Options
                      */
@@ -139,16 +130,6 @@ module.exports = {
             }
         }),
         
-        new webpack.ContextReplacementPlugin(/moment[\/\\]locale$/, /en/),
-
-        /**
-         * Shim additional libraries
-         * 
-         * See: https://webpack.js.org/plugins/provide-plugin/
-         */
-        new webpack.ProvidePlugin({
-            // Mouse trap handles shortcut management
-            'Mousetrap': 'mousetrap/mousetrap'
-        })
+        new webpack.ContextReplacementPlugin(/moment[\/\\]locale$/, /en/)
     ]
 };

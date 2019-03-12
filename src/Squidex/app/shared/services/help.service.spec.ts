@@ -29,55 +29,38 @@ describe('AppClientsService', () => {
     it('should make get request to get help sections',
         inject([HelpService, HttpTestingController], (helpService: HelpService, httpMock: HttpTestingController) => {
 
-        let helpSections: string[];
+        let helpSections: string;
 
         helpService.getHelp('01-chapter/02-article').subscribe(result => {
             helpSections = result;
         });
 
-        const req = httpMock.expectOne('https://api.gitbook.com/book/squidex/squidex/contents/01-chapter/02-article.json');
+        const req = httpMock.expectOne('https://raw.githubusercontent.com/Squidex/squidex-docs/master/01-chapter/02-article.md');
 
         expect(req.request.method).toEqual('GET');
         expect(req.request.headers.get('If-Match')).toBeNull();
 
-        req.flush({
-            sections: [
-                {
-                    content: 'A test content with'
-                },
-                {
-                    content: 'A test content with a <a href="https://squidex.io">A Link</a>'
-                },
-                {
-                    content: 'A test content with a <a href="../GLOSSARY.html#content">Glossary Link</a>'
-                }
-            ]
-        });
+        req.flush('Markdown');
 
-        expect(helpSections!).toEqual(
-            [
-                'A test content with',
-                'A test content with a <a href="https://squidex.io">A Link</a>',
-                'A test content with a <a target="_blank" href="https://docs.squidex.io/GLOSSARY.html#content">Glossary Link</a>'
-            ]);
+        expect(helpSections!).toEqual('Markdown');
     }));
 
     it('should return empty sections if get request fails',
         inject([HelpService, HttpTestingController], (helpService: HelpService, httpMock: HttpTestingController) => {
 
-        let helpSections: string[];
+        let helpSections: string;
 
         helpService.getHelp('01-chapter/02-article').subscribe(result => {
             helpSections = result;
         });
 
-        const req = httpMock.expectOne('https://api.gitbook.com/book/squidex/squidex/contents/01-chapter/02-article.json');
+        const req = httpMock.expectOne('https://raw.githubusercontent.com/Squidex/squidex-docs/master/01-chapter/02-article.md');
 
         expect(req.request.method).toEqual('GET');
         expect(req.request.headers.get('If-Match')).toBeNull();
 
         req.error(<any>{});
 
-        expect(helpSections!).toEqual([]);
+        expect(helpSections!).toEqual('');
     }));
 });

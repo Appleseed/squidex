@@ -15,16 +15,10 @@ namespace Squidex.Infrastructure
     {
         private static readonly Regex CultureRegex = new Regex("^([a-z]{2})(\\-[a-z]{2})?$", RegexOptions.IgnoreCase);
         private static readonly Dictionary<string, Language> AllLanguagesField = new Dictionary<string, Language>(StringComparer.OrdinalIgnoreCase);
-        private readonly string iso2Code;
-        private readonly string englishName;
 
         private static Language AddLanguage(string iso2Code, string englishName)
         {
-            var language = new Language(iso2Code, englishName);
-
-            AllLanguagesField[iso2Code] = language;
-
-            return language;
+            return AllLanguagesField.GetOrAdd(iso2Code, englishName, (c, n) => new Language(c, n));
         }
 
         public static Language GetLanguage(string iso2Code)
@@ -41,26 +35,20 @@ namespace Squidex.Infrastructure
             }
         }
 
-        public static IEnumerable<Language> AllLanguages
+        public static IReadOnlyCollection<Language> AllLanguages
         {
             get { return AllLanguagesField.Values; }
         }
 
-        public string EnglishName
-        {
-            get { return englishName; }
-        }
+        public string EnglishName { get; }
 
-        public string Iso2Code
-        {
-            get { return iso2Code; }
-        }
+        public string Iso2Code { get; }
 
         private Language(string iso2Code, string englishName)
         {
-            this.iso2Code = iso2Code;
+            Iso2Code = iso2Code;
 
-            this.englishName = englishName;
+            EnglishName = englishName;
         }
 
         public static bool IsValidLanguage(string iso2Code)

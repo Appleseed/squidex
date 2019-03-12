@@ -8,52 +8,39 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Newtonsoft.Json.Linq;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.Json.Objects;
 using Squidex.Infrastructure.Orleans;
 using Squidex.Infrastructure.States;
 
 namespace Squidex.Domain.Apps.Entities.Apps
 {
-    public sealed class AppUISettingsGrain : GrainOfGuid, IAppUISettingsGrain
+    public sealed class AppUISettingsGrain : GrainOfGuid<AppUISettingsGrain.GrainState>, IAppUISettingsGrain
     {
-        private readonly IStore<Guid> store;
-        private IPersistence<State> persistence;
-        private State state = new State();
-
         [CollectionName("UISettings")]
-        public sealed class State
+        public sealed class GrainState
         {
-            public JObject Settings { get; set; } = new JObject();
+            public JsonObject Settings { get; set; } = JsonValue.Object();
         }
 
         public AppUISettingsGrain(IStore<Guid> store)
+            : base(store)
         {
-            Guard.NotNull(store, nameof(store));
-
-            this.store = store;
         }
 
-        public override Task OnActivateAsync(Guid key)
+        public Task<J<JsonObject>> GetAsync()
         {
-            persistence = store.WithSnapshots<State, Guid>(GetType(), key, x => state = x);
-
-            return persistence.ReadAsync();
+            return Task.FromResult(State.Settings.AsJ());
         }
 
-        public Task<J<JObject>> GetAsync()
+        public Task SetAsync(J<JsonObject> settings)
         {
-            return Task.FromResult(state.Settings.AsJ());
+            State.Settings = settings;
+
+            return WriteStateAsync();
         }
 
-        public Task SetAsync(J<JObject> settings)
-        {
-            state.Settings = settings;
-
-            return persistence.WriteSnapshotAsync(state);
-        }
-
-        public Task SetAsync(string path, J<JToken> value)
+        public Task SetAsync(string path, J<IJsonValue> value)
         {
             var container = GetContainer(path, out var key);
 
@@ -62,9 +49,9 @@ namespace Squidex.Domain.Apps.Entities.Apps
                 throw new InvalidOperationException("Path does not lead to an object.");
             }
 
-            container[key] = value;
+            container[key] = value.Value;
 
-            return persistence.WriteSnapshotAsync(state);
+            return WriteStateAsync();
         }
 
         public Task RemoveAsync(string path)
@@ -76,10 +63,10 @@ namespace Squidex.Domain.Apps.Entities.Apps
                 container.Remove(key);
             }
 
-            return persistence.WriteSnapshotAsync(state);
+            return WriteStateAsync();
         }
 
-        private JObject GetContainer(string path, out string key)
+        private JsonObject GetContainer(string path, out string key)
         {
             Guard.NotNullOrEmpty(path, nameof(path));
 
@@ -87,7 +74,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
 
             key = segments[segments.Length - 1];
 
-            var current = state.Settings;
+            var current = State.Settings;
 
             if (segments.Length > 1)
             {
@@ -95,12 +82,12 @@ namespace Squidex.Domain.Apps.Entities.Apps
                 {
                     if (!current.TryGetValue(segment, out var temp))
                     {
-                        temp = new JObject();
+                        temp = JsonValue.Object();
 
                         current[segment] = temp;
                     }
 
-                    if (temp is JObject next)
+                    if (temp is JsonObject next)
                     {
                         current = next;
                     }

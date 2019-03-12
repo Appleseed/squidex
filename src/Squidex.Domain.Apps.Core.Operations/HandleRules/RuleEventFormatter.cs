@@ -10,32 +10,38 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using Squidex.Domain.Apps.Core.Contents;
 using Squidex.Domain.Apps.Core.HandleRules.EnrichedEvents;
+using Squidex.Domain.Apps.Core.Scripting;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.Json;
+using Squidex.Infrastructure.Json.Objects;
 using Squidex.Shared.Users;
 
 namespace Squidex.Domain.Apps.Core.HandleRules
 {
     public class RuleEventFormatter
     {
-        private const string Undefined = "UNDEFINED";
+        private const string Fallback = "null";
+        private const string ScriptSuffix = ")";
+        private const string ScriptPrefix = "Script(";
         private static readonly char[] ContentPlaceholderStartOld = "CONTENT_DATA".ToCharArray();
         private static readonly char[] ContentPlaceholderStartNew = "{CONTENT_DATA".ToCharArray();
         private static readonly Regex ContentDataPlaceholderOld = new Regex(@"^CONTENT_DATA(\.([0-9A-Za-z\-_]*)){2,}", RegexOptions.Compiled);
         private static readonly Regex ContentDataPlaceholderNew = new Regex(@"^\{CONTENT_DATA(\.([0-9A-Za-z\-_]*)){2,}\}", RegexOptions.Compiled);
         private readonly List<(char[] Pattern, Func<EnrichedEvent, string> Replacer)> patterns = new List<(char[] Pattern, Func<EnrichedEvent, string> Replacer)>();
-        private readonly JsonSerializer serializer;
+        private readonly IJsonSerializer jsonSerializer;
         private readonly IRuleUrlGenerator urlGenerator;
+        private readonly IScriptEngine scriptEngine;
 
-        public RuleEventFormatter(JsonSerializer serializer, IRuleUrlGenerator urlGenerator)
+        public RuleEventFormatter(IJsonSerializer jsonSerializer, IRuleUrlGenerator urlGenerator, IScriptEngine scriptEngine)
         {
-            Guard.NotNull(serializer, nameof(serializer));
+            Guard.NotNull(jsonSerializer, nameof(jsonSerializer));
+            Guard.NotNull(scriptEngine, nameof(scriptEngine));
             Guard.NotNull(urlGenerator, nameof(urlGenerator));
 
-            this.serializer = serializer;
+            this.jsonSerializer = jsonSerializer;
+            this.scriptEngine = scriptEngine;
             this.urlGenerator = urlGenerator;
 
             AddPattern("APP_ID", AppId);
@@ -46,6 +52,7 @@ namespace Squidex.Domain.Apps.Core.HandleRules
             AddPattern("SCHEMA_NAME", SchemaName);
             AddPattern("TIMESTAMP_DATETIME", TimestampTime);
             AddPattern("TIMESTAMP_DATE", TimestampDate);
+            AddPattern("USER_ID", UserId);
             AddPattern("USER_NAME", UserName);
             AddPattern("USER_EMAIL", UserEmail);
         }
@@ -55,17 +62,14 @@ namespace Squidex.Domain.Apps.Core.HandleRules
             patterns.Add((placeholder.ToCharArray(), generator));
         }
 
-        public virtual JObject ToPayload<T>(T @event)
+        public virtual string ToPayload<T>(T @event)
         {
-            return JObject.FromObject(@event, serializer);
+            return jsonSerializer.Serialize(@event);
         }
 
-        public virtual JObject ToEnvelope(EnrichedEvent @event)
+        public virtual string ToEnvelope(EnrichedEvent @event)
         {
-            return new JObject(
-                new JProperty("type", @event.Name),
-                new JProperty("payload", ToPayload(@event)),
-                new JProperty("timestamp", @event.Timestamp.ToString()));
+            return jsonSerializer.Serialize(new { type = @event.Name, payload = @event, timestamp = @event.Timestamp });
         }
 
         public string Format(string text, EnrichedEvent @event)
@@ -73,6 +77,19 @@ namespace Squidex.Domain.Apps.Core.HandleRules
             if (string.IsNullOrWhiteSpace(text))
             {
                 return text;
+            }
+
+            if (text.StartsWith(ScriptPrefix, StringComparison.OrdinalIgnoreCase) && text.EndsWith(ScriptSuffix, StringComparison.OrdinalIgnoreCase))
+            {
+                var script = text.Substring(ScriptPrefix.Length, text.Length - ScriptPrefix.Length - ScriptSuffix.Length);
+
+                var customFunctions = new Dictionary<string, Func<string>>
+                {
+                    ["contentUrl"] = () => ContentUrl(@event),
+                    ["contentAction"] = () => ContentAction(@event)
+                };
+
+                return scriptEngine.Interpolate("event", @event, script, customFunctions);
             }
 
             var current = text.AsSpan();
@@ -97,13 +114,13 @@ namespace Squidex.Domain.Apps.Core.HandleRules
 
                     for (var j = 0; j < patterns.Count; j++)
                     {
-                        var (Pattern, Replacer) = patterns[j];
+                        var (pattern, replacer) = patterns[j];
 
-                        if (test.StartsWith(Pattern, StringComparison.OrdinalIgnoreCase))
+                        if (test.StartsWith(pattern, StringComparison.OrdinalIgnoreCase))
                         {
-                            sb.Append(Replacer(@event));
+                            sb.Append(replacer(@event));
 
-                            current = current.Slice(Pattern.Length + 1);
+                            current = current.Slice(pattern.Length + 1);
                             i = 0;
 
                             tested = true;
@@ -130,7 +147,7 @@ namespace Squidex.Domain.Apps.Core.HandleRules
                             }
                             else
                             {
-                                sb.Append(Undefined);
+                                sb.Append(Fallback);
                             }
 
                             current = current.Slice(match.Length + 1);
@@ -167,32 +184,32 @@ namespace Squidex.Domain.Apps.Core.HandleRules
 
         private static string SchemaId(EnrichedEvent @event)
         {
-            if (@event is EnrichedSchemaEvent schemaEvent)
+            if (@event is EnrichedSchemaEventBase schemaEvent)
             {
                 return schemaEvent.SchemaId.Id.ToString();
             }
 
-            return Undefined;
+            return Fallback;
         }
 
         private static string SchemaName(EnrichedEvent @event)
         {
-            if (@event is EnrichedSchemaEvent schemaEvent)
+            if (@event is EnrichedSchemaEventBase schemaEvent)
             {
                 return schemaEvent.SchemaId.Name;
             }
 
-            return Undefined;
+            return Fallback;
         }
 
         private static string ContentAction(EnrichedEvent @event)
         {
             if (@event is EnrichedContentEvent contentEvent)
             {
-                return contentEvent.Type.ToString().ToLowerInvariant();
+                return contentEvent.Type.ToString();
             }
 
-            return Undefined;
+            return Fallback;
         }
 
         private string ContentUrl(EnrichedEvent @event)
@@ -202,43 +219,37 @@ namespace Squidex.Domain.Apps.Core.HandleRules
                 return urlGenerator.GenerateContentUIUrl(contentEvent.AppId, contentEvent.SchemaId, contentEvent.Id);
             }
 
-            return Undefined;
+            return Fallback;
         }
 
         private static string UserName(EnrichedEvent @event)
         {
-            if (@event.Actor != null)
+            if (@event is EnrichedUserEventBase userEvent)
             {
-                if (@event.Actor.Type.Equals(RefTokenType.Client, StringComparison.OrdinalIgnoreCase))
-                {
-                    return @event.Actor.ToString();
-                }
-
-                if (@event.User != null)
-                {
-                    return @event.User.DisplayName();
-                }
+                return userEvent.User?.DisplayName() ?? Fallback;
             }
 
-            return Undefined;
+            return Fallback;
+        }
+
+        private static string UserId(EnrichedEvent @event)
+        {
+            if (@event is EnrichedUserEventBase userEvent)
+            {
+                return userEvent.User?.Id ?? Fallback;
+            }
+
+            return Fallback;
         }
 
         private static string UserEmail(EnrichedEvent @event)
         {
-            if (@event.Actor != null)
+            if (@event is EnrichedUserEventBase userEvent)
             {
-                if (@event.Actor.Type.Equals(RefTokenType.Client, StringComparison.OrdinalIgnoreCase))
-                {
-                    return @event.Actor.ToString();
-                }
-
-                if (@event.User != null)
-                {
-                    return @event.User.Email;
-                }
+                return userEvent.User?.Email ?? Fallback;
             }
 
-            return Undefined;
+            return Fallback;
         }
 
         private static string CalculateData(NamedContentData data, Match match)
@@ -254,42 +265,37 @@ namespace Squidex.Domain.Apps.Core.HandleRules
 
             if (!data.TryGetValue(path[0], out var field))
             {
-                return Undefined;
+                return Fallback;
             }
 
             if (!field.TryGetValue(path[1], out var value))
             {
-                return Undefined;
+                return Fallback;
             }
 
             for (var j = 2; j < path.Length; j++)
             {
-                if (value is JObject obj && obj.TryGetValue(path[j], out value))
+                if (value is JsonObject obj && obj.TryGetValue(path[j], out value))
                 {
                     continue;
                 }
 
-                if (value is JArray arr && int.TryParse(path[j], out var idx) && idx >= 0 && idx < arr.Count)
+                if (value is JsonArray array && int.TryParse(path[j], out var idx) && idx >= 0 && idx < array.Count)
                 {
-                    value = arr[idx];
+                    value = array[idx];
                 }
                 else
                 {
-                    return Undefined;
+                    return Fallback;
                 }
             }
 
-            if (value == null || value.Type == JTokenType.Null || value.Type == JTokenType.Undefined)
+            if (value == null || value.Type == JsonValueType.Null)
             {
-                return Undefined;
+                return Fallback;
             }
 
-            if (value is JValue jValue && jValue != null)
-            {
-                return jValue.Value.ToString();
-            }
-
-            return value?.ToString(Formatting.Indented) ?? Undefined;
+            return value.ToString() ?? Fallback;
         }
     }
 }

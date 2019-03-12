@@ -24,14 +24,14 @@ namespace Squidex.Domain.Apps.Entities.Contents
 
             if (context.IsCompleted &&
                 context.Command is CreateSchema createSchema &&
-                createSchema.Singleton)
+                createSchema.IsSingleton)
             {
-                var schemaId = new NamedId<Guid>(createSchema.SchemaId, createSchema.Name);
+                var schemaId = NamedId.Of(createSchema.SchemaId, createSchema.Name);
 
                 var data = new NamedContentData();
 
                 var contentId = schemaId.Id;
-                var content = new CreateContent { Data = data, ContentId = contentId, SchemaId = schemaId };
+                var content = new CreateContent { Data = data, ContentId = contentId, SchemaId = schemaId, DoNotValidate = true };
 
                 SimpleMapper.Map(createSchema, content);
 

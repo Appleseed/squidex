@@ -8,6 +8,7 @@
 using System.Threading.Tasks;
 using EventStore.ClientAPI;
 using EventStore.ClientAPI.Exceptions;
+using Squidex.Infrastructure.Json;
 using Squidex.Infrastructure.Tasks;
 
 namespace Squidex.Infrastructure.EventSourcing
@@ -16,14 +17,15 @@ namespace Squidex.Infrastructure.EventSourcing
     {
         private readonly IEventStoreConnection connection;
         private readonly IEventSubscriber subscriber;
+        private readonly IJsonSerializer serializer;
         private readonly EventStoreCatchUpSubscription subscription;
         private readonly long? position;
 
         public GetEventStoreSubscription(
             IEventStoreConnection connection,
             IEventSubscriber subscriber,
+            IJsonSerializer serializer,
             ProjectionClient projectionClient,
-            string prefix,
             string position,
             string streamFilter)
         {
@@ -35,8 +37,10 @@ namespace Squidex.Infrastructure.EventSourcing
 
             var streamName = projectionClient.CreateProjectionAsync(streamFilter).Result;
 
+            this.serializer = serializer;
             this.subscriber = subscriber;
-            this.subscription = SubscribeToStream(streamName);
+
+            subscription = SubscribeToStream(streamName);
         }
 
         public Task StopAsync()
@@ -57,7 +61,7 @@ namespace Squidex.Infrastructure.EventSourcing
             return connection.SubscribeToStreamFrom(streamName, position, settings,
                 (s, e) =>
                 {
-                    var storedEvent = Formatter.Read(e);
+                    var storedEvent = Formatter.Read(e, serializer);
 
                     subscriber.OnEventAsync(this, storedEvent).Wait();
                 }, null,

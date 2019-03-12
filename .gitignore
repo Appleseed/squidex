@@ -4,7 +4,10 @@
 *.vs
 *.log
 
+.awCache
+
 .vscode
+.awcache
 
 # Build results
 bin/
@@ -21,9 +24,8 @@ node_modules/
 # Scripts (should be copied from node_modules on build)
 **/wwwroot/scripts/**/*.*
 
-/src/Squidex/appsettings.Development.json
-/src/Squidex/Assets
-/src/Squidex/package-lock.json
-/src/Squidex/Properties/launchSettings.json
+/src/Squidex/Assets/
 
-/global.json
+appsettings.Development.json
+appsettings.Production.json
+launchSettings.json

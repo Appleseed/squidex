@@ -7,13 +7,14 @@
 
 using System;
 using Newtonsoft.Json;
+using NodaTime;
 using Xunit;
 
 namespace Squidex.Infrastructure.Log
 {
     public class JsonLogWriterTests
     {
-        private readonly IObjectWriter sut = new JsonLogWriter();
+        private readonly IObjectWriter sut = JsonLogWriterFactory.Default().Create();
 
         [Fact]
         public void Should_write_boolean_property()
@@ -48,29 +49,21 @@ namespace Squidex.Infrastructure.Log
         }
 
         [Fact]
-        public void Should_write_timespan_property()
+        public void Should_write_duration_property()
         {
-            var result = sut.WriteProperty("property", new TimeSpan(1, 40, 30, 20, 100)).ToString();
+            var result = sut.WriteProperty("property", new TimeSpan(2, 16, 30, 20, 100)).ToString();
 
             Assert.Equal(@"{""property"":""2.16:30:20.1000000""}", result);
         }
 
         [Fact]
-        public void Should_write_datetimeoffset_property()
-        {
-            var value = DateTimeOffset.UtcNow;
-            var result = sut.WriteProperty("property", value).ToString();
-
-            Assert.Equal($"{{\"property\":\"{value:o}\"}}", result);
-        }
-
-        [Fact]
         public void Should_write_date_property()
         {
-            var value = DateTime.UtcNow;
+            var value = Instant.FromUtc(2012, 11, 10, 9, 8, 45);
+
             var result = sut.WriteProperty("property", value).ToString();
 
-            Assert.Equal($"{{\"property\":\"{value:o}\"}}", result);
+            Assert.Equal(@"{""property"":""2012-11-10T09:08:45Z""}", result);
         }
 
         [Fact]
@@ -106,9 +99,9 @@ namespace Squidex.Infrastructure.Log
         }
 
         [Fact]
-        public void Should_write_timespan_value()
+        public void Should_write_duration_value()
         {
-            var result = sut.WriteArray("property", a => a.WriteValue(new TimeSpan(1, 40, 30, 20, 100))).ToString();
+            var result = sut.WriteArray("property", a => a.WriteValue(new TimeSpan(2, 16, 30, 20, 100))).ToString();
 
             Assert.Equal(@"{""property"":[""2.16:30:20.1000000""]}", result);
         }
@@ -122,35 +115,51 @@ namespace Squidex.Infrastructure.Log
         }
 
         [Fact]
-        public void Should_write_datetimeoffset_value()
+        public void Should_write_object_in_array_with_context()
         {
-            var value = DateTimeOffset.UtcNow;
-            var result = sut.WriteArray("property", a => a.WriteValue(value)).ToString();
+            var result = sut.WriteArray("property1", a => a.WriteObject(13, (ctx, b) => b.WriteProperty("property2", 13))).ToString();
 
-            Assert.Equal($"{{\"property\":[\"{value:o}\"]}}", result);
+            Assert.Equal(@"{""property1"":[{""property2"":13}]}", result);
+        }
+
+        [Fact]
+        public void Should_write_array_value_with_context()
+        {
+            var result = sut.WriteArray("property", 13, (ctx, a) => a.WriteValue(ctx)).ToString();
+
+            Assert.Equal(@"{""property"":[13]}", result);
         }
 
         [Fact]
         public void Should_write_date_value()
         {
-            var value = DateTime.UtcNow;
+            var value = Instant.FromUtc(2012, 11, 10, 9, 8, 45);
+
             var result = sut.WriteArray("property", a => a.WriteValue(value)).ToString();
 
-            Assert.Equal($"{{\"property\":[\"{value:yyyy-MM-ddTHH:mm:ssZ}\"]}}", result);
+            Assert.Equal(@"{""property"":[""2012-11-10T09:08:45Z""]}", result);
         }
 
         [Fact]
         public void Should_write_nested_object()
         {
-            var result = sut.WriteObject("property", a => a.WriteProperty("nested", "my-string")).ToString();
+            var result = sut.WriteObject("property", o => o.WriteProperty("nested", "my-string")).ToString();
 
             Assert.Equal(@"{""property"":{""nested"":""my-string""}}", result);
         }
 
         [Fact]
+        public void Should_write_nested_object_with_context()
+        {
+            var result = sut.WriteObject("property", 13, (ctx, o) => o.WriteProperty("nested", ctx)).ToString();
+
+            Assert.Equal(@"{""property"":{""nested"":13}}", result);
+        }
+
+        [Fact]
         public void Should_write_pretty_json()
         {
-            IObjectWriter prettySut = new JsonLogWriter(Formatting.Indented);
+            var prettySut = new JsonLogWriterFactory(Formatting.Indented).Create();
 
             var result = prettySut.WriteProperty("property", 1.5).ToString();
 
@@ -160,7 +169,7 @@ namespace Squidex.Infrastructure.Log
         [Fact]
         public void Should_write_extra_line_after_object()
         {
-            IObjectWriter prettySut = new JsonLogWriter(Formatting.None, true);
+            var prettySut = new JsonLogWriterFactory(Formatting.None, true).Create();
 
             var result = prettySut.WriteProperty("property", 1.5).ToString();
 
